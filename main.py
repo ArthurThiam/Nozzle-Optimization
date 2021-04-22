@@ -1,5 +1,6 @@
 from math import *
 import sympy as sy
+import plotly.express as px
 
 # Define atmospheric data
 atmospheric_data = {'base_altitude': [0, 11000, 20000, 32000, 47000, 51000, 71000, 100000],
@@ -11,7 +12,6 @@ atmospheric_data = {'base_altitude': [0, 11000, 20000, 32000, 47000, 51000, 7100
 
 def determine_atmosphere(altitude, atmosphere):
     # Determine pressure and density at the current altitude. Works up to and excluding 100,000 m
-
     data_found = False
     i = 0
 
@@ -24,6 +24,15 @@ def determine_atmosphere(altitude, atmosphere):
             base_density = atmosphere['base_density'][i]
             base_pressure = atmosphere['base_pressure'][i]
             lapse = atmosphere['lapse'][i]
+
+            data_found = True
+
+        elif altitude > atmosphere['base_altitude'][7]:
+            lapse = 0
+            base_altitude = 100000
+            base_temperature = 214.65
+            base_density = 0
+            base_pressure = 0
 
             data_found = True
 
@@ -117,12 +126,12 @@ def exhaust_velocity(R_e, gamma, c, d, dz):
     R = 640.91
     T_c = 2170
 
-    Gamma = sqrt(gamma) * (2 / (gamma + 1)) ^ ((gamma + 1) / (2 * (gamma - 1)))
+    Gamma = sqrt(gamma) * (2 / (gamma + 1)) ** ((gamma + 1) / (2 * (gamma - 1)))
 
-    expansion_ratio = (pi * R_e ^ 2) / throat_area
+    expansion_ratio = (pi * R_e ** 2) / throat_area
     p_ratio = pressure_ratio(expansion_ratio, gamma)
 
-    U_e = sqrt(2 * (gamma * R * T_c) / (gamma - 1) * (1 - p_ratio ^ ((gamma - 1) / gamma))) * performance_loss(c, dz,
+    U_e = sqrt(2 * (gamma * R * T_c) / (gamma - 1) * (1 - p_ratio ** ((gamma - 1) / gamma))) * performance_loss(c, dz,
                                                                                                                d)
     return U_e
 
@@ -140,8 +149,8 @@ def nozzle_properties(c, d, dz):
     # d = 0.0454;
 
     # Determine z_min(z_value for which the graphite - zirconium transition radius is reached)
-    z_min = 0
-    r = 0
+    z_min = 0.
+    r = 0.
     R_transition = 72.15 / 1000.
 
     while abs(r - R_transition) > 0.1 / 1000.:
@@ -153,10 +162,10 @@ def nozzle_properties(c, d, dz):
     # Determine results through integration
     z = sy.Symbol("z")
 
-    V_zirconium = (pi * 1. / 1000. * (1. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
-                                                                         (z, z_min, z_max)))) * 1000000  # cm3
-    V_titanium = (pi * 4. / 1000. * (4. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
-                                                                        (z, z_min, z_max)))) * 1000000  # cm3
+    #V_zirconium = (pi * 1. / 1000. * (1. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
+                                                                         #(z, z_min, z_max)))) * 1000000  # cm3
+    #V_titanium = (pi * 4. / 1000. * (4. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
+                                                                        #(z, z_min, z_max)))) * 1000000  # cm3
 
 
     #V_zirconium = (pi * 1. / 1000. * (1. / 1000. * dz + 2 * integrate(R, z_min, z_max))) * 1000000 # cm3
@@ -165,7 +174,7 @@ def nozzle_properties(c, d, dz):
     R_e = radius_function(a, b, c, d, z_max)
 
     # Return Results
-    return [V_titanium, V_zirconium, R_e]
+    return [0, 0, R_e]
 
 
 def objective_function(x):
@@ -175,7 +184,7 @@ def objective_function(x):
 
     gamma = 1.15
     m = 10  # kg / s
-    altitude = 0  # m
+    altitude = 1  # m
     t = 0  # s
     dt = 0.1
     t_simulation = 400
@@ -188,12 +197,12 @@ def objective_function(x):
 
     # Determine nozzle parameters from input
 
-    nozzle = nozzle_properties(x[1], x[2], x[3])  # nozzle_properties returns [V_titanium, V_zirconium, R_e].
+    nozzle = nozzle_properties(x[0], x[1], x[2])  # nozzle_properties returns [V_titanium, V_zirconium, R_e].
     # TODO: Change function outputs to dictionaries for clarity
-    A_e = (pi * nozzle[3] ^ 2)
+    A_e = (pi * nozzle[2] ** 2)
 
-    u_e = exhaust_velocity(nozzle[3], gamma, x(1), x(2), x(3))
-    loss_factor = performance_loss(x[1], x[2], x[3])
+    u_e = exhaust_velocity(nozzle[2], gamma, x[0], x[1], x[2])
+    loss_factor = performance_loss(x[0], x[1], x[2])
 
     epsilon = A_e / A_t
     p_e = p_c * pressure_ratio(epsilon, gamma)
@@ -203,7 +212,7 @@ def objective_function(x):
 
     # Start simulation loop
 
-    while t < t_simulation:
+    while altitude > 0: # or while t_simulation
 
         # Determine current atmospheric conditions
         atm = determine_atmosphere(altitude, atmospheric_data)
@@ -217,14 +226,14 @@ def objective_function(x):
         else:
             F_t = 0
 
-        F_d = c_d * 0.5 * rho * v ^ 2 * ((100. / 1000.) ** 2 * pi)
+        F_d = c_d * 0.5 * rho * v ** 2 * ((100. / 1000.) ** 2 * pi)
         F_w = mass * 9.80665
 
         F = F_t - F_d - F_w
         a = F / mass
 
         # Calculate distance travelled
-        d = v * dt + 0.5 * a * dt ^ 2
+        d = v * dt + 0.5 * a * dt ** 2
         altitude = altitude + d
 
         if altitude < 0:
@@ -236,18 +245,66 @@ def objective_function(x):
 
         t = t + dt
         v = v + a * dt
-        time = time.append(t)
-        data = data.append(altitude)
+        time.append(t)
+        data.append(altitude)
+
+        print('time: ', t)
+        print('altitude: ', altitude)
+        print('net force: ', F)
+        print('acceleration: ', a)
+        print('')
 
     # plot(time, data)
     # fprintf('performance evaluated.\n');
-    performance = (1 / max(data)) * 1e6
+    #performance = (1 / max(data)) * 1e6
 
-    return performance
+    simulation = [time, data]
+    return simulation
 
 
 # =================================================== OPTIMIZATION =====================================================
 
 
-# Main optimization code here
+# Initial Values
+
+c = 0.0888 # 0.0909        [-] c value for nozzle curve definition
+d = 0.0694 # 0.0454
+dz = 0.1015 # 0.1          [m]   skirt length
+x0 = [c, d, dz]
+
+performance = objective_function(x0)
+print(performance)
+
+fig = px.scatter(x=performance[0], y=performance[1])
+fig.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
