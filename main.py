@@ -2,6 +2,10 @@ from math import *
 import sympy as sy
 import plotly.express as px
 
+
+# =========================================== FLIGHT MODEL =============================================================
+
+
 # Define atmospheric data
 atmospheric_data = {'base_altitude': [0, 11000, 20000, 32000, 47000, 51000, 71000, 100000],
                     'base_temperature': [288.15, 216.65, 216.65, 228.65, 270.65, 270.65, 214.65],
@@ -248,35 +252,56 @@ def objective_function(x):
         time.append(t)
         data.append(altitude)
 
-        print('time: ', t)
-        print('altitude: ', altitude)
-        print('net force: ', F)
-        print('acceleration: ', a)
-        print('')
+        #print('time: ', t)
+        #print('altitude: ', altitude)
+        #print('net force: ', F)
+        #print('acceleration: ', a)
+        #print('')
 
     # plot(time, data)
     # fprintf('performance evaluated.\n');
-    #performance = (1 / max(data)) * 1e6
+    apogee = (1 / max(data)) * 1e6
 
-    simulation = [time, data]
+    simulation = [time, data, apogee]
     return simulation
 
+# =================================================== GA FUNCTIONS======================================================
 
-# =================================================== OPTIMIZATION =====================================================
+
+# Initialization: generate an initial population based on the initial solution.
+def initialize(initial_solution, population_size):
+    initial_population = []
+
+    return initial_population
+
+# Selection: Randomly selecting the solutions to carry over from the solution space to the next generation.
+def selection(population):
+
+    selected = []
+
+    return selected
+
+# Cross-over: Cutting genomes of different solutions at a random spot and combining them to for a new solution.
+
+# Elitism: Adding the X best solutions of this generation to the next generation.
+
+# Mutation: Introducing a random variation in the genomes of the new generation.
+
+
+# =================================================== MAIN LOOP ========================================================
 
 
 # Initial Values
 
+
 c = 0.0888 # 0.0909        [-] c value for nozzle curve definition
-d = 0.0694 # 0.0454
+d = 0.05 # 0.0454
 dz = 0.1015 # 0.1          [m]   skirt length
-x0 = [c, d, dz]
+time = []
+data = []
 
-performance = objective_function(x0)
-print(performance)
-
-fig = px.scatter(x=performance[0], y=performance[1])
-fig.show()
+population_size = 8
+initial_solution = [c, d, dz]
 
 
 
@@ -291,6 +316,20 @@ fig.show()
 
 
 
+
+#while d < 0.08:
+#    print(d)
+#    x0 = [c, d, dz]
+#    performance = objective_function(x0)
+#    time.append(d)
+#    data.append(max(performance[1]))
+#
+#    d += 0.0001
+
+#print(time)
+#print(data)
+#fig = px.scatter(x=time, y=data)
+#fig.show()
 
 
 
