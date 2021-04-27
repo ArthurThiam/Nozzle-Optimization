@@ -1,7 +1,9 @@
 from math import *
 import sympy as sy
 import plotly.express as px
+import random
 
+# ================================================== MODEL FUNCTIONS ===================================================
 
 # =========================================== FLIGHT MODEL =============================================================
 
@@ -198,6 +200,7 @@ def objective_function(x):
     c_d = 1.5
     v = 0  # m / s
     mass = 350  # kg
+    # TODO: incorporate variable nozzle mass
 
     # Determine nozzle parameters from input
 
@@ -260,22 +263,42 @@ def objective_function(x):
 
     # plot(time, data)
     # fprintf('performance evaluated.\n');
-    apogee = (1 / max(data)) * 1e6
+    apogee = max(data)
 
-    simulation = [time, data, apogee]
+    simulation = {'time': time,
+                  'data': data,
+                  'apogee': apogee}
     return simulation
 
-# =================================================== GA FUNCTIONS======================================================
+# =================================================== GA FUNCTIONS =====================================================
+
+
+# Randomization function for generating initial population
+def randomize_solution(input_solution):
+
+    new_solution = []
+    for i in range(len(input_solution)):
+        new_entry = input_solution[i] + (- 0.5 + 1*random.random())*input_solution[i]  # up to 50% variation
+        new_solution.append(new_entry)
+
+    return new_solution
 
 
 # Initialization: generate an initial population based on the initial solution.
-def initialize(initial_solution, population_size):
+def initialize(input_solution, population_size):
     initial_population = []
+    iterator = 0
+
+    # vary each parameter within the initial solution by a random percentage to form initial population
+    while iterator < population_size:
+        initial_population.append(randomize_solution(input_solution))
+        iterator += 1
 
     return initial_population
 
+
 # Selection: Randomly selecting the solutions to carry over from the solution space to the next generation.
-def selection(population):
+def select_pair(evaluation):
 
     selected = []
 
@@ -292,16 +315,29 @@ def selection(population):
 
 
 # Initial Values
-
-
 c = 0.0888 # 0.0909        [-] c value for nozzle curve definition
 d = 0.05 # 0.0454
 dz = 0.1015 # 0.1          [m]   skirt length
-time = []
-data = []
 
+x = [c, d, dz]
 population_size = 8
-initial_solution = [c, d, dz]
+population = initialize(x, population_size)
+
+# Evaluate population
+evaluated_population = []
+
+for solution in population:
+    apogee = objective_function(solution)['apogee']
+    evaluation = [solution, apogee]
+    evaluated_population.append(evaluation)
+
+print(evaluated_population)
+
+# Perform selection
+
+# Perform cross-over
+
+# Apply elitism
 
 
 
