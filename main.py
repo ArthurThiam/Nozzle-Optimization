@@ -84,7 +84,7 @@ def pressure_ratio(epsilon_true, gamma):
 
 
 def radius_function(a, b, c, d, z):
-    return (a + (sqrt(b + 1000 * c * z) / d)) * 0.001
+    return (a + ((b + 1000 * c * z)**0.5 / d)) * 0.001
 
 
 def performance_loss(c, dz, d):
@@ -142,9 +142,8 @@ def exhaust_velocity(R_e, gamma, c, d, dz):
     return U_e
 
 
-def nozzle_properties(c, d, dz):
+def objective_function_1(c, d, dz):
     # Determine nozzle volumetric parameters
-
 
     # Initialize parameters
     # dz = 100 / 1000; # m
@@ -163,27 +162,27 @@ def nozzle_properties(c, d, dz):
         r = radius_function(a, b, c, d, z_min)
         z_min = z_min + 0.001 / 1000.
 
-    z_max = z_min + dz # m
+    z_max = z_min + dz  # m
 
     # Determine results through integration
     z = sy.Symbol("z")
 
-    #V_zirconium = (pi * 1. / 1000. * (1. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
-                                                                         #(z, z_min, z_max)))) * 1000000  # cm3
-    #V_titanium = (pi * 4. / 1000. * (4. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
-                                                                        #(z, z_min, z_max)))) * 1000000  # cm3
+    v_zirconium = (pi * 1. / 1000. * (1. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
+                                                                         (z, z_min, z_max)))) * 1000000  # cm3
+    v_titanium = (pi * 4. / 1000. * (4. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
+                                                                        (z, z_min, z_max)))) * 1000000  # cm3
 
-
-    #V_zirconium = (pi * 1. / 1000. * (1. / 1000. * dz + 2 * integrate(R, z_min, z_max))) * 1000000 # cm3
-    #V_titanium = (pi * 4. / 1000. * (4. / 1000. * dz + 2 * integrate(R, z_min, z_max))) * 1000000 # cm3
+    mass_zirconium = v_zirconium * 6400
+    mass_titanium = v_titanium * 4420
+    nozzle_mass = mass_zirconium + mass_titanium
 
     R_e = radius_function(a, b, c, d, z_max)
 
     # Return Results
-    return [0, 0, R_e]
+    return [nozzle_mass, R_e]
 
 
-def objective_function(x):
+def objective_function_2(x):
     # Objective function for optimization. Runs simulation based on input vector x to determine performance.
     # TODO: Assess input parameters for vector x (= Optimization parameters)
 
@@ -199,16 +198,15 @@ def objective_function(x):
     A_t = pi * (40. / 1000.) ** 2
     c_d = 1.5
     v = 0  # m / s
-    mass = 350  # kg
-    # TODO: incorporate variable nozzle mass
 
     # Determine nozzle parameters from input
 
-    nozzle = nozzle_properties(x[0], x[1], x[2])  # nozzle_properties returns [V_titanium, V_zirconium, R_e].
+    nozzle = objective_function_1(x[0], x[1], x[2])  # nozzle_properties returns [nozzle_mass, R_e].
+    mass = 350 + nozzle[0]  # kg
     # TODO: Change function outputs to dictionaries for clarity
-    A_e = (pi * nozzle[2] ** 2)
+    A_e = (pi * nozzle[1] ** 2)
 
-    u_e = exhaust_velocity(nozzle[2], gamma, x[0], x[1], x[2])
+    u_e = exhaust_velocity(nozzle[1], gamma, x[0], x[1], x[2])
     loss_factor = performance_loss(x[0], x[1], x[2])
 
     epsilon = A_e / A_t
@@ -267,7 +265,8 @@ def objective_function(x):
 
     simulation = {'time': time,
                   'data': data,
-                  'apogee': apogee}
+                  'apogee': apogee,
+                  'nozzle mass': nozzle[0]}
     return simulation
 
 # =================================================== GA FUNCTIONS =====================================================
@@ -311,6 +310,33 @@ def select_pair(evaluation):
 # Mutation: Introducing a random variation in the genomes of the new generation.
 
 
+# =================================================== PLOTTING =========================================================
+# Initial Values
+c = 0.0888  # 0.0909        [-] c value for nozzle curve definition
+d = 0.05  # 0.0454
+dz = 0.1015  # 0.1          [m]   skirt length
+
+x = [c, d, dz]
+variable = []
+apogee_data = []
+mass_data = []
+
+while d < 0.08:
+    x0 = [c, d, dz]
+    performance = objective_function_2(x0)
+    variable.append(d)
+    apogee_data.append(performance['apogee'])
+    mass_data.append(performance['nozzle mass'])
+
+    d += 0.001
+
+print(apogee_data)
+print(mass_data)
+
+fig = px.scatter(x=variable, y=mass_data)
+#fig = px.scatter(x=variable, y=apogee_data)
+fig.show()
+
 # =================================================== MAIN LOOP ========================================================
 
 
@@ -327,7 +353,7 @@ population = initialize(x, population_size)
 evaluated_population = []
 
 for solution in population:
-    apogee = objective_function(solution)['apogee']
+    apogee = objective_function_2(solution)['apogee']
     evaluation = [solution, apogee]
     evaluated_population.append(evaluation)
 
@@ -338,36 +364,6 @@ print(evaluated_population)
 # Perform cross-over
 
 # Apply elitism
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#while d < 0.08:
-#    print(d)
-#    x0 = [c, d, dz]
-#    performance = objective_function(x0)
-#    time.append(d)
-#    data.append(max(performance[1]))
-#
-#    d += 0.0001
-
-#print(time)
-#print(data)
-#fig = px.scatter(x=time, y=data)
-#fig.show()
-
-
 
 
 
