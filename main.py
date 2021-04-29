@@ -2,10 +2,10 @@ from math import *
 import sympy as sy
 import plotly.express as px
 import random
-import numpy
-from sklearn.preprocessing import MinMaxScaler
 
 # ================================================== MODEL FUNCTIONS ===================================================
+
+# =========================================== FLIGHT MODEL =============================================================
 
 
 # Define atmospheric data
@@ -87,12 +87,12 @@ def radius_function(a, b, c, d, z):
     return (a + ((b + 1000 * c * z)**0.5 / d)) * 0.001
 
 
-def performance_loss(a, b, c, d, dz):
+def performance_loss(c, dz, d):
     # Determine the performance lost due to radial thrust force component
 
 
-    # a = -1.3360
-    # b = 2.3935
+    a = -1.3360
+    b = 2.3935
     # d = 0.0454
 
 
@@ -123,11 +123,11 @@ def performance_loss(a, b, c, d, dz):
     return loss_factor
 
 
-def exhaust_velocity(R_e, gamma, a, b, c, d, dz):
+def exhaust_velocity(R_e, gamma, c, d, dz):
     # Determine flow exit velocity based on geometric and flow conditions
 
 
-    # Seems like too many parameters here are hard-coded
+    # TODO: Seems like too many parameters here are hard-coded
     throat_area = pi * (40 * 0.001) ** 2
     R = 640.91
     T_c = 2170
@@ -137,31 +137,28 @@ def exhaust_velocity(R_e, gamma, a, b, c, d, dz):
     expansion_ratio = (pi * R_e ** 2) / throat_area
     p_ratio = pressure_ratio(expansion_ratio, gamma)
 
-    U_e = sqrt(2 * (gamma * R * T_c) / (gamma - 1) * (1 - p_ratio ** ((gamma - 1) / gamma))) * performance_loss(a, b, c, d,
-                                                                                                               dz)
+    U_e = sqrt(2 * (gamma * R * T_c) / (gamma - 1) * (1 - p_ratio ** ((gamma - 1) / gamma))) * performance_loss(c, dz,
+                                                                                                               d)
     return U_e
 
 
-# ================================================ OBJECTIVE FUNCTIONS =================================================
-
-def objective_function_1(a, b, c, d, dz):
-
+def objective_function_1(c, d, dz):
     # Determine nozzle volumetric parameters
 
     # Initialize parameters
     # dz = 100 / 1000; # m
 
-    #a = -1.3360
-    #b = 2.3935
+    a = -1.3360
+    b = 2.3935
     # c is called from the function input
     # d = 0.0454;
 
     # Determine z_min(z_value for which the graphite - zirconium transition radius is reached)
     z_min = 0.
     r = 0.
-    r_transition = 72.15 / 1000.
+    R_transition = 72.15 / 1000.
 
-    while abs(r - r_transition) > 0.1 / 1000.:
+    while abs(r - R_transition) > 0.1 / 1000.:
         r = radius_function(a, b, c, d, z_min)
         z_min = z_min + 0.001 / 1000.
 
@@ -172,45 +169,45 @@ def objective_function_1(a, b, c, d, dz):
 
     v_zirconium = (pi * 1. / 1000. * (1. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
                                                                          (z, z_min, z_max)))) * 1000000  # cm3
-
     v_titanium = (pi * 4. / 1000. * (4. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
                                                                         (z, z_min, z_max)))) * 1000000  # cm3
 
-    mass_zirconium = (v_zirconium * 6.400)/1000.
-    mass_titanium = (v_titanium * 4.420)/1000.
+    mass_zirconium = v_zirconium * 6400
+    mass_titanium = v_titanium * 4420
     nozzle_mass = mass_zirconium + mass_titanium
 
-
-    r_e = radius_function(a, b, c, d, z_max)
-
+    R_e = radius_function(a, b, c, d, z_max)
 
     # Return Results
-    return [nozzle_mass, r_e]
+    return [nozzle_mass, R_e]
 
 
-def objective_function_2(a, b, c, d, dz):
+def objective_function_2(x):
     # Objective function for optimization. Runs simulation based on input vector x to determine performance.
+    # TODO: Assess input parameters for vector x (= Optimization parameters)
+
 
     gamma = 1.15
-    m = 10  # kg / s
+    m = 10  # kg / s #TODO: derive mass flow from throat area + pressure? adds an new geometric parameter to vary
     altitude = 1  # m
     t = 0  # s
     dt = 0.1
+    t_simulation = 400
     t_thrust = 22.5
     p_c = 15 * 10 ^ 5  # Pa
     A_t = pi * (40. / 1000.) ** 2
     c_d = 1.5
     v = 0  # m / s
 
-    # Determine nozzle parameters from input, determine rocket mass
-    nozzle = objective_function_1(a, b, c, d, dz)  # nozzle_properties returns [nozzle_mass, R_e].
-    mass = 350 + float(nozzle[0])  # kg
+    # Determine nozzle parameters from input
 
+    nozzle = objective_function_1(x[0], x[1], x[2])  # nozzle_properties returns [nozzle_mass, R_e].
+    mass = 350 + nozzle[0]  # kg
     # TODO: Change function outputs to dictionaries for clarity
     A_e = (pi * nozzle[1] ** 2)
 
-    u_e = exhaust_velocity(nozzle[1], gamma, a, b, c, d, dz)
-    loss_factor = performance_loss(a, b, c, d, dz)
+    u_e = exhaust_velocity(nozzle[1], gamma, x[0], x[1], x[2])
+    loss_factor = performance_loss(x[0], x[1], x[2])
 
     epsilon = A_e / A_t
     p_e = p_c * pressure_ratio(epsilon, gamma)
@@ -219,7 +216,8 @@ def objective_function_2(a, b, c, d, dz):
     time = []
 
     # Start simulation loop
-    while v >= 0:  # or while t_simulation
+
+    while altitude > 0: # or while t_simulation
 
         # Determine current atmospheric conditions
         atm = determine_atmosphere(altitude, atmospheric_data)
@@ -255,15 +253,24 @@ def objective_function_2(a, b, c, d, dz):
         time.append(t)
         data.append(altitude)
 
+        #print('time: ', t)
+        #print('altitude: ', altitude)
+        #print('net force: ', F)
+        #print('acceleration: ', a)
+        #print('')
+
+    # plot(time, data)
+    # fprintf('performance evaluated.\n');
+    apogee = max(data)
+
     simulation = {'time': time,
                   'data': data,
-                  'apogee': max(data),
+                  'apogee': apogee,
                   'nozzle mass': nozzle[0]}
-
     return simulation
 
 # =================================================== GA FUNCTIONS =====================================================
-# TODO: Change nozzle properties and performance (i.e. genome) to class before continuing
+
 
 # Randomization function for generating initial population
 def randomize_solution(input_solution):
@@ -305,35 +312,33 @@ def select_pair(evaluation):
 
 # =================================================== PLOTTING =========================================================
 # Initial Values
-a = -1.3360
-b = 2.3935
 c = 0.0888  # 0.0909        [-] c value for nozzle curve definition
 d = 0.05  # 0.0454
 dz = 0.1015  # 0.1          [m]   skirt length
 
-x = [a, b, c, d, dz]
+x = [c, d, dz]
 variable = []
 apogee_data = []
 mass_data = []
 
 while d < 0.08:
-    performance = objective_function_2(a, b, c, d, dz)
+    x0 = [c, d, dz]
+    performance = objective_function_2(x0)
     variable.append(d)
     apogee_data.append(performance['apogee'])
-    mass_data.append(float(performance['nozzle mass']))
+    mass_data.append(performance['nozzle mass'])
 
     d += 0.001
 
-
-print(len(apogee_data), ', ', apogee_data)
-print(len(variable), ', ', variable)
+print(apogee_data)
+print(mass_data)
 
 fig = px.scatter(x=variable, y=mass_data)
-# fig = px.scatter(x=variable, y=apogee_data)
+#fig = px.scatter(x=variable, y=apogee_data)
 fig.show()
 
 # =================================================== MAIN LOOP ========================================================
-# TODO: Change nozzle properties and performance (i.e. genome) to class before continuing
+
 
 # Initial Values
 c = 0.0888 # 0.0909        [-] c value for nozzle curve definition
