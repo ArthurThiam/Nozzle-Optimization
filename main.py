@@ -2,6 +2,8 @@ from math import *
 import sympy as sy
 import plotly.express as px
 import random
+import sys
+from Nozzle import radius_function
 
 # ================================================== MODEL FUNCTIONS ===================================================
 
@@ -80,11 +82,8 @@ def pressure_ratio(epsilon_true, gamma):
 
         pressure_ratio_calculated = pressure_ratio_calculated + pressure_stepsize
 
+    print('pressure ratio: ', pressure_ratio_calculated)
     return pressure_ratio_calculated
-
-
-def radius_function(a, b, c, d, z):
-    return (a + ((b + 1000 * c * z)**0.5 / d)) * 0.001
 
 
 def performance_loss(c, dz, d):
@@ -120,6 +119,7 @@ def performance_loss(c, dz, d):
 
     loss_factor = 1 - (1 - cos(exit_angle)) / 2
 
+    print('loss factor: ', loss_factor)
     return loss_factor
 
 
@@ -139,6 +139,7 @@ def exhaust_velocity(R_e, gamma, c, d, dz):
 
     U_e = sqrt(2 * (gamma * R * T_c) / (gamma - 1) * (1 - p_ratio ** ((gamma - 1) / gamma))) * performance_loss(c, dz,
                                                                                                                d)
+    print('exhaust velocity: ', U_e)
     return U_e
 
 
@@ -168,15 +169,16 @@ def objective_function_1(c, d, dz):
     z = sy.Symbol("z")
 
     v_zirconium = (pi * 1. / 1000. * (1. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
-                                                                         (z, z_min, z_max)))) * 1000000  # cm3
+                                                                         (z, z_min, z_max)))) #* 1000000  # cm3
     v_titanium = (pi * 4. / 1000. * (4. / 1000. * dz + 2 * sy.integrate(radius_function(a, b, c, d, z),
-                                                                        (z, z_min, z_max)))) * 1000000  # cm3
+                                                                        (z, z_min, z_max)))) #* 1000000  # cm3
 
     mass_zirconium = v_zirconium * 6400
     mass_titanium = v_titanium * 4420
     nozzle_mass = mass_zirconium + mass_titanium
 
     R_e = radius_function(a, b, c, d, z_max)
+    print('exit radius: ', R_e)
 
     # Return Results
     return [nozzle_mass, R_e]
@@ -210,6 +212,7 @@ def objective_function_2(x):
     loss_factor = performance_loss(x[0], x[1], x[2])
 
     epsilon = A_e / A_t
+    print('epsilon: ', epsilon)
     p_e = p_c * pressure_ratio(epsilon, gamma)
 
     data = []
@@ -321,43 +324,40 @@ variable = []
 apogee_data = []
 mass_data = []
 
-while d < 0.08:
-    x0 = [c, d, dz]
-    performance = objective_function_2(x0)
-    variable.append(d)
-    apogee_data.append(performance['apogee'])
-    mass_data.append(performance['nozzle mass'])
+#while d < 0.08:
+#    x0 = [c, d, dz]
+#    performance = objective_function_2(x0)
+#    variable.append(d)
+#    apogee_data.append(performance['apogee'])
+#    mass_data.append(performance['nozzle mass'])
 
-    d += 0.001
+#    d += 0.001
 
-print(apogee_data)
-print(mass_data)
+#print(apogee_data)
+#print(mass_data)
 
-fig = px.scatter(x=variable, y=mass_data)
+#fig = px.scatter(x=variable, y=mass_data)
 #fig = px.scatter(x=variable, y=apogee_data)
-fig.show()
+#fig.show()
 
 # =================================================== MAIN LOOP ========================================================
 
+performance = objective_function_2(x)
+print('apogee: ', performance['apogee'])
+sys.exit()
 
-# Initial Values
-c = 0.0888 # 0.0909        [-] c value for nozzle curve definition
-d = 0.05 # 0.0454
-dz = 0.1015 # 0.1          [m]   skirt length
-
-x = [c, d, dz]
-population_size = 8
-population = initialize(x, population_size)
+#population_size = 8
+#population = initialize(x, population_size)
 
 # Evaluate population
-evaluated_population = []
+#evaluated_population = []
 
-for solution in population:
-    apogee = objective_function_2(solution)['apogee']
-    evaluation = [solution, apogee]
-    evaluated_population.append(evaluation)
+#for solution in population:
+#    apogee = objective_function_2(solution)['apogee']
+#    evaluation = [solution, apogee]
+#    evaluated_population.append(evaluation)
 
-print(evaluated_population)
+#print(evaluated_population)
 
 # Perform selection
 

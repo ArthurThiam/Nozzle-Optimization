@@ -5,7 +5,7 @@ def radius_function(a, b, c, d, z):
     return (a + ((b + 1000 * c * z)**0.5 / d)) * 0.001
 
 
-class Genome:
+class Chromosome:
 
     def __init__(self, geometry, engine_properties):
         self.a = geometry[0]
@@ -19,8 +19,22 @@ class Genome:
         self.t_thrust = engine_properties[2]
         self.A_t = engine_properties[3]
 
+    def transition(self):
+        z_min = 0
+        r = 0
+        R_transition = 72.15 / 1000.
+
+        # Determine z_min(z_value for which the graphite - zirconium transition radius is reached)
+        while abs(r - R_transition) > 0.1 / 1000.:
+            r = radius_function(self.a, self.b, self.c, self.d, z_min)
+            z_min = z_min + 0.001 / 1000.
+
+        z_max = z_min + self.dz
+
+        return [z_min, z_max]
+
     def exit_radius(self):
-        return (self.a + ((self.b + 1000 * self.c * self.dz) ** 0.5 / self.d)) * 0.001
+        return radius_function(self.a, self.b, self.c, self.d, self.transition()[1])
 
     def expansion_ratio(self):
         return (pi * self.exit_radius() ** 2)/self.A_t

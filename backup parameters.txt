@@ -1,0 +1,12 @@
+ [Geometry]
+a = -1.3360
+b = 2.3935
+c = 0.0888   ;0.0909        [-] c value for nozzle curve definition
+d = 0.05     ;0.0454
+dz = 0.1015  ;0.1          [m]   skirt length
+
+[Engine Properties]
+gamma = 1.15
+m = 10                          ;kg/s
+t_thrust = 22.5                 ;s
+A_t = 0.005026548246            ;pi * (40. / 1000.) ** 2

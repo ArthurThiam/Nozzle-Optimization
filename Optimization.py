@@ -1,27 +1,27 @@
-from Nozzle import Genome
-import sympy as sy
+from ObjectiveFunctions import *
+import configparser
 import plotly.express as px
 import random
-from math import *
 
 
-# Define initial properties
-a = -1.3360
-b = 2.3935
-c = 0.0888  # 0.0909        [-] c value for nozzle curve definition
-d = 0.05  # 0.0454
-dz = 0.1015  # 0.1          [m]   skirt length
+# Read initial parameters
+config = configparser.ConfigParser()
+config.read('settings.ini')
 
-geometry = [a, b, c, d, dz]
+geometry = [config.getfloat('Geometry', 'a'),
+            config.getfloat('Geometry', 'b'),
+            config.getfloat('Geometry', 'c'),
+            config.getfloat('Geometry', 'd'),
+            config.getfloat('Geometry', 'dz')]
 
-gamma = 1.15
-m = 10 # kg/s
-t_thrust = 22.5 # s
-A_t = pi * (40. / 1000.) ** 2
-
-engine_properties = [gamma, m, t_thrust, A_t]
+engine_properties = [config.getfloat('Engine Properties', 'gamma'),
+                     config.getfloat('Engine Properties', 'm'),
+                     config.getfloat('Engine Properties', 't_thrust'),
+                     config.getfloat('Engine Properties', 'A_t')]
 
 # Create genome instance
-genome_1 = Genome(geometry, engine_properties)
+chromosome_1 = Chromosome(geometry, engine_properties)
 
-print(genome_1.exit_radius())
+# Run simulation test
+simulation = objective_function_2(chromosome_1)
+print(simulation['apogee'])
