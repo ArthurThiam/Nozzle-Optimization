@@ -18,6 +18,7 @@ class Chromosome:
         self.m = engine_properties[1]
         self.t_thrust = engine_properties[2]
         self.A_t = engine_properties[3]
+        self.p_c = engine_properties[4]
 
     def transition(self):
         z_min = 0

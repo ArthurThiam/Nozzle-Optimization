@@ -1,8 +1,6 @@
 from math import *
 
 
-
-
 def determine_atmosphere(altitude, atmosphere):
     # Determine pressure and density at the current altitude. Works up to and excluding 100,000 m
     data_found = False

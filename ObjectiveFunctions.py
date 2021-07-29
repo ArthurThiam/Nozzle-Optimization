@@ -36,7 +36,7 @@ def objective_function_1(chromosome):
     return v_zirconium * 6400 + v_titanium * 4420
 
 
-def objective_function_2(chromosome):
+def objective_function_2(chromosome, simulation_settings):
     # Objective function for optimization. Runs simulation based on input vector x to determine performance.
     # TODO: Assess input parameters for vector x (= Optimization parameters)
 
@@ -45,9 +45,9 @@ def objective_function_2(chromosome):
     # TODO: derive mass flow from throat area + pressure? adds a new geometric parameter to vary
     altitude = 1  # m
     t = 0  # s
-    dt = 0.1
-    p_c = 15 * 10 ^ 5  # Pa
-    c_d = 1.5
+    dt = simulation_settings[0]
+    p_c = chromosome.p_c #15 * 10 ^ 5  # Pa
+    c_d = simulation_settings[1]
     v = 0  # m / s
 
     # Determine nozzle parameters from input
