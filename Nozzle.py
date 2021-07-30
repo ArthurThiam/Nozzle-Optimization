@@ -1,8 +1,18 @@
 from math import *
+from isa import determine_atmosphere
+import sympy as sy
+from Settings_import import *
 
 
 def radius_function(a, b, c, d, z):
     return (a + ((b + 1000 * c * z)**0.5 / d)) * 0.001
+
+
+atmospheric_data = {'base_altitude': [0, 11000, 20000, 32000, 47000, 51000, 71000, 100000],
+                    'base_temperature': [288.15, 216.65, 216.65, 228.65, 270.65, 270.65, 214.65],
+                    'base_density': [1.225, 0.36391, 0.08803, 0.01322, 0.00143, 0.00086, 0.000064],
+                    'base_pressure': [101325, 22632.1, 5474, 868.02, 110.91, 66.94, 3.96],
+                    'lapse': [-0.0065, 0, 0.001, 0.0028, 0, -0.0028, -0.002]}
 
 
 class Chromosome:
@@ -19,6 +29,8 @@ class Chromosome:
         self.t_thrust = engine_properties[2]
         self.A_t = engine_properties[3]
         self.p_c = engine_properties[4]
+
+    # NOZZLE CHARACTERISTICS METHODS
 
     def transition(self):
         z_min = 0
@@ -103,4 +115,108 @@ class Chromosome:
 
         return U_e
 
+    # OBJECTIVE FUNCTION METHODS
 
+    def objective_function_1(self):
+        # Determine nozzle volumetric parameters
+
+        # Determine z_min(z_value for which the graphite - zirconium transition radius is reached)
+        z_min = self.transition()[0]
+        z_max = self.transition()[1]
+
+        # Determine results through integration
+        z = sy.Symbol("z")
+
+        v_zirconium = (pi * 1. / 1000. * (1. / 1000. * self.dz + 2 * sy.integrate(radius_function(self.a,
+                                                                                                        self.b,
+                                                                                                        self.c,
+                                                                                                        self.d,
+                                                                                                        z),
+                                                                                        (z, z_min, z_max))))  # cm3
+
+        v_titanium = (pi * 4. / 1000. * (4. / 1000. * self.dz + 2 * sy.integrate(radius_function(self.a,
+                                                                                                       self.b,
+                                                                                                       self.c,
+                                                                                                       self.d,
+                                                                                                       z),
+                                                                                       (z, z_min, z_max))))  # cm3
+
+        # Return nozzle mass
+        return v_zirconium * 6400 + v_titanium * 4420
+
+    def objective_function_2(self, simulation_settings):
+        # Objective function for optimization. Runs simulation based on input vector x to determine performance.
+        # TODO: Assess input parameters for vector x (= Optimization parameters)
+
+        # TODO: derive mass flow from throat area + pressure? adds a new geometric parameter to vary
+        altitude = 1  # m
+        t = 0  # s
+        dt = simulation_settings[0]
+        p_c = self.p_c  # 15 * 10 ^ 5  # Pa
+        c_d = simulation_settings[1]
+        v = 0  # m / s
+
+        # Determine nozzle parameters from input
+
+        nozzle_mass = self.objective_function_1()  # nozzle_properties returns [nozzle_mass, R_e].
+        mass = 350 + nozzle_mass  # kg
+        # TODO: Change function outputs to dictionaries for clarity
+        A_e = self.A_t * self.expansion_ratio()
+        p_e = p_c * self.pressure_ratio()
+
+        data = []
+        time = []
+
+        # Start simulation loop
+
+        while altitude > 0:  # or while t_simulation
+
+            # Determine current atmospheric conditions
+            atm = determine_atmosphere(altitude, atmospheric_data)
+            p_a = atm['pressure']
+            rho = atm['density']
+
+            # Calculate net force and acceleration
+            if t < self.t_thrust:
+                F_t = self.performance_loss() * self.m * self.exhaust_velocity() + (p_e - p_a) * A_e
+
+            else:
+                F_t = 0
+
+            F_d = c_d * 0.5 * rho * v ** 2 * ((100. / 1000.) ** 2 * pi)
+            F_w = mass * 9.80665
+
+            F = F_t - F_d - F_w
+            a = F / mass
+
+            # Calculate distance travelled
+            d = v * dt + 0.5 * a * dt ** 2
+            altitude = altitude + d
+
+            if altitude < 0:
+                altitude = 0
+
+            # Update variables
+            if t < self.t_thrust:
+                mass = mass - self.m * dt
+
+            t = t + dt
+            v = v + a * dt
+            time.append(t)
+            data.append(altitude)
+
+        # plot(time, data)
+        # fprintf('performance evaluated.\n');
+        apogee = max(data)
+
+        simulation = {'time': time,
+                      'data': data,
+                      'apogee': apogee,
+                      'nozzle mass': nozzle_mass}
+
+        return simulation
+
+    # Chromosome information
+
+    def genes(self):
+        return [self.a, self.b, self.c, self.d, self.dz]
