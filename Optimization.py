@@ -1,7 +1,7 @@
 #from ObjectiveFunctions import *
 from Nozzle import *
+import time
 import plotly.express as px
-import random
 from numpy import zeros
 
 
@@ -32,91 +32,30 @@ def initialize(input_solution, population_size):
     return initial_population
 
 
-# Selection: Randomly selecting the solutions to carry over from the solution space to the next generation.
-def roulette_wheel_selection(population):
-
-    # generate list of apogees
-    apogee_list = []
-    for solution in population:
-
-        apogee = solution.objective_function_2(simulation_settings)['apogee']
-        apogee_list.append(apogee)
-
-    # calculate fitness and selection probabilities
-    total = sum(apogee_list)
-    fitness_probabilities = []
-    selection_probabilities = []
-
-    for apogee in apogee_list:
-        fitness_probability = apogee/total
-        selection_probability = random.randint(0,100)/100
-
-        fitness_probabilities.append(fitness_probability)
-        selection_probabilities.append(selection_probability)
-
-    # make list of cumulative fitness probabilities
-    cumulative_fitness = zeros(len(fitness_probabilities))
-    for i in range(len(fitness_probabilities)):
-        cumulative_fitness[i] = cumulative_fitness[i-1] + fitness_probabilities[i]
-
-    # apply selection probabilities to cumulative fitness probabilities
-    found = False
-    selection = []
-
-    for iterator in range(len(selection_probabilities)):
-        if selection_probabilities[iterator] < fitness_probabilities[iterator]:
-            iterator += 1
-
-        else:
-            found = True
-            selection.append(population[iterator])
-
-
-
-    #print(selection)
-
-    return selection
-
-
-# Cross-over: Cutting genomes of different solutions at a random spot and combining them for a new solution.
-def single_point_crossover(parent_1, parent_2):
-
-    cross_over_point = random.randint(0, len(parent_1))
-
-    for gene in range(cross_over_point, len(parent_1)):
-        parent_1[gene], parent_2[gene] = parent_2[gene], parent_1[gene]
-
-    offspring = [parent_1, parent_2]
-
-    return offspring
-
-# Elitism: Adding the X best solutions of this generation to the next generation.
-
-# Mutation: Introducing a random variation in the genomes of the new generation.
-
-
 # ============================================== MAIN CODE =============================================================
 
+
 # Initialize population
-input_solution = geometry
-solution_space = initialize(geometry, 5)
-
-print('Initial solution space: ', solution_space)
-
+solution_space = initialize(geometry, GA_settings[3])
 
 # Create population of chromosomes from initial solution space
-population = []
+gene_set = []
 for solution in solution_space:
-    population.append(Chromosome(solution, engine_properties))
+    gene_set.append(Chromosome(solution, engine_properties))
 
-# Select fittest chromosomes
-roulette_wheel_selection(population)
+population = Population(gene_set)
 
-# Print apogee of every solution
-#for solution in population:
-#    print(solution.objective_function_2(simulation_settings)['apogee'])
+# Perform reproduction (and time it)
+start_time = time.time()
 
+population.reproduce()
 
+runtime = time.time() - start_time
+
+print('New population: ', len(population.population))
+print('')
+print('total runtime [s]: ', runtime)
+print('average runtime per chromosome [s/chromosome]:', runtime/GA_settings[3])
 
 
 # ============================================== UNIT TESTING ==========================================================

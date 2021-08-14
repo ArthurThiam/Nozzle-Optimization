@@ -1,7 +1,9 @@
 from math import *
 from isa import determine_atmosphere
 import sympy as sy
-from Settings_import import *
+from numpy import zeros
+from Operators import *
+
 
 
 def radius_function(a, b, c, d, z):
@@ -149,6 +151,7 @@ class Chromosome:
         # TODO: Assess input parameters for vector x (= Optimization parameters)
 
         # TODO: derive mass flow from throat area + pressure? adds a new geometric parameter to vary
+        prev_altitude = 0  # m (used to determine if rocket is still ascending or not)
         altitude = 1  # m
         t = 0  # s
         dt = simulation_settings[0]
@@ -166,10 +169,10 @@ class Chromosome:
 
         data = []
         time = []
-
+        ascending = True
         # Start simulation loop
 
-        while altitude > 0:  # or while t_simulation
+        while ascending:  # or while t_simulation
 
             # Determine current atmospheric conditions
             atm = determine_atmosphere(altitude, atmospheric_data)
@@ -193,12 +196,16 @@ class Chromosome:
             d = v * dt + 0.5 * a * dt ** 2
             altitude = altitude + d
 
-            if altitude < 0:
-                altitude = 0
+            if altitude < prev_altitude:
+                ascending = False
+
+            else:
+                prev_altitude = altitude
 
             # Update variables
             if t < self.t_thrust:
                 mass = mass - self.m * dt
+
 
             t = t + dt
             v = v + a * dt
@@ -220,3 +227,147 @@ class Chromosome:
 
     def genes(self):
         return [self.a, self.b, self.c, self.d, self.dz]
+
+
+
+
+
+class Population:
+
+    def __init__(self, population):
+
+        self.population = population
+        self.population_steadiness = GA_settings[0]
+        self.crossover_prob = GA_settings[1]
+        self.mutation_prob = GA_settings[2]
+        self.genes = []
+        self.offspring_count = 0
+
+
+    # Function to derive how many offspring will be replacing population members (and so how many parents are needed)
+    # The higher population steadiness is, the less members will be replaced by offspring
+    def population_replacement(self):
+
+        # Determine size of population
+        population_size = GA_settings[3]
+
+        # Calculate exact amount of population members that will stay
+        steady_chromosome_count = round(population_size*self.population_steadiness, 0)
+
+        # Derive number of offspring required
+        offspring_count = population_size - steady_chromosome_count
+
+        print('')
+        print('population size: ', population_size)
+        print('population steadiness: ', self.population_steadiness)
+        print('number of offspring to be calculated: ', offspring_count)
+        print('')
+
+        self.offspring_count = offspring_count
+
+        return offspring_count
+
+    # Selection: Fitness proportional parent selection.
+    def parent_selection_roulette(self):
+
+        # Generate list of apogees
+        apogee_list = []
+        for solution in self.population:
+            #print('Calculating fitness of Chromosome ', solution)
+            apogee = solution.objective_function_2(simulation_settings)['apogee']
+            apogee_list.append(apogee)
+
+        # Calculate fitness probabilities
+        total = sum(apogee_list)
+        fitness_probabilities = []
+
+
+        for apogee in apogee_list:
+
+            fitness_probability = apogee / total
+            fitness_probabilities.append(fitness_probability)
+
+
+        # Calculate selection probabilities
+        selection_probabilities = []
+        iterator = 0
+
+
+        # Select the amount of required offspring as parents (a couple makes two offspring)
+        while iterator < self.offspring_count:
+
+            selection_probability = random.randint(0, 100) / 100
+            selection_probabilities.append(selection_probability)
+
+            iterator += 1
+
+
+        # Make list of cumulative fitness probabilities
+        cumulative_fitness = zeros(len(fitness_probabilities))
+        #print("selec. probs.: ", selection_probabilities)
+
+        for i in range(len(fitness_probabilities)):
+
+            cumulative_fitness[i] = cumulative_fitness[i - 1] + fitness_probabilities[i]
+
+        #print("cumulative fitness: ", cumulative_fitness)
+        # Apply selection probabilities to cumulative fitness probabilities
+        parent_selection = []
+
+
+        for selector in range(len(selection_probabilities)):  # selector running through each selection probability
+
+            selected = False  # Boolean to indicated whether a chromosome was selected in current loop
+            iterator = 0  # iterator running through each chromosome
+
+            while not selected:
+
+                if selection_probabilities[selector] < cumulative_fitness[iterator]:
+
+                    # selection probability falls in the selection range of the current chromosome
+                    parent_selection.append(self.population[iterator])
+                    selected = True
+
+                else:
+                    # selection probability does not fall in selecion range of current chromosome, move on to next
+                    iterator += 1
+
+
+
+
+        print('Selected parents:', len(parent_selection))
+
+        return parent_selection
+
+
+    # Cross-over: Cutting genomes of different solutions at a random spot and combining them for a new solution.
+    # TODO: check if method is still static
+
+    # Reproduce and add offspring to population
+    def reproduce(self):
+
+        offspring_target = self.population_replacement()    #   calling population replacement will also update self.offspring_count
+                                                            #   so it doesn't have to be recalled in the future
+        offspring_counter = 0
+        offspring = []
+        parent_list = self.parent_selection_roulette()
+
+        while offspring_counter < offspring_target:
+
+            index_1 = offspring_counter
+            index_2 = index_1 + 1
+
+            offspring = offspring + single_point_crossover(parent_list[index_1], parent_list[index_2])
+
+            offspring_counter += 2
+
+        # add offspring to current population
+        self.population = self.population + offspring
+
+
+    # TODO: add mutation operator
+
+    # TODO: add selection of survivors (# of selected survivors = population size)
+#class Generational_Population:
+#
+#    def __init__(self):

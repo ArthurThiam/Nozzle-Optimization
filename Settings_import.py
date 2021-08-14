@@ -17,3 +17,8 @@ engine_properties = [config.getfloat('Engine Properties', 'gamma'),
 
 simulation_settings = [config.getfloat('Simulation Settings', 'dt'),
                        config.getfloat('Simulation Settings', 'c_d')]
+
+GA_settings = [config.getfloat('GA Settings', 'population_steadiness'),
+               config.getfloat('GA Settings', 'crossover_prob'),
+               config.getfloat('GA Settings', 'mutation_prob'),
+               config.getint('GA Settings', 'population_size')]
