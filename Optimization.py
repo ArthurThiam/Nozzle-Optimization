@@ -1,7 +1,4 @@
 from Nozzle import *
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from matplotlib import style
 
 # ============================================ INITIALIZATION ==========================================================
 solution_space = initialize(geometry, GA_settings[3])
@@ -13,7 +10,6 @@ for solution in solution_space:
 population = Population(gene_set)
 
 
-
 # ============================================== MAIN CODE =============================================================
 generation_list = [population]
 generation_count = 0
@@ -22,14 +18,14 @@ generation_target = GA_settings[4]
 while generation_count < generation_target:
 
     population.select_survivors()                               # Determine survivors of current generation
-    print('Population', generation_count, '; Best performance: ', max(population.evaluation), ' m')
+    print('Best performance: ', max(population.evaluation), ' m')
+    print('Population', generation_count, ': ', population.evaluation)
     print('----------------------------------------------------')
     population = Population(population.population)              # Generate new population with surviving members
     generation_list.append(population)                          # Add new population to list of generations
 
+
     generation_count += 1
-
-
 
 # ===============================================================================
 

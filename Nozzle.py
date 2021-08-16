@@ -24,7 +24,7 @@ def randomize_solution(input_solution):
 
     new_solution = []
     for i in range(len(input_solution)):
-        new_entry = input_solution[i] + (- 0.5 + 1*random.random())*input_solution[i]  # up to 50% variation
+        new_entry = input_solution[i] + (- 0.5 + 1*random.random())*input_solution[i]  # up to 20% variation
         new_solution.append(new_entry)
 
     return new_solution
@@ -44,6 +44,7 @@ def initialize(input_solution, population_size):
 
 
 # The single point cross-over takes two chromosome instances and returns their two offspring
+# TODO: fix cross-over function (either change operator or come up with better cross over point)
 def single_point_crossover(chromosome_1, chromosome_2):
 
     # pull parent genes from input chromosomes
@@ -51,7 +52,8 @@ def single_point_crossover(chromosome_1, chromosome_2):
     parent_2 = chromosome_2.genes()
 
     # determine cross over point
-    cross_over_point = random.randint(0, len(parent_1))
+    #cross_over_point = random.randint(0, len(parent_1))
+    cross_over_point = 3
 
     # perform cross over
     for gene in range(cross_over_point, len(parent_1)):
@@ -129,21 +131,27 @@ def roulette_selection(population, evaluation, target_count):
 
 
 # Ranked selection
+# TODO: unit list ranked selection
 def ranked_selection(population, evaluation, target_count):
 
     selection = []
     iterator = 0
-    temp_evaluation = evaluation
+    temp_evaluation = []
+    temp_evaluation += evaluation
 
     while iterator < target_count:
-        index = evaluation.index(max(temp_evaluation))      # find index of best performer
-        selection.append(population[index])                 # add best performer to selection
-        temp_evaluation.pop(index)                          # remove previous max from evaluation list
+        index = temp_evaluation.index(max(temp_evaluation))         # find index of best performer
+        selection.append(population[index])                         # add best performer to selection
+        temp_evaluation.pop(index)                                  # remove previous max from evaluation list
 
         iterator += 1
 
     return selection
 
+
+# Mutation operator
+def mutate(chromosome):
+    return 0
 
 # ================================================= CLASSES ======================================================
 
@@ -162,6 +170,8 @@ class Chromosome:
         self.t_thrust = engine_properties[2]
         self.A_t = engine_properties[3]
         self.p_c = engine_properties[4]
+        self.performance_loss_factor = 1
+        self.pressure_ratio_value = 0
 
     # NOZZLE CHARACTERISTICS METHODS
 
@@ -190,7 +200,7 @@ class Chromosome:
 
         Gamma = sqrt(self.gamma) * (2 / (self.gamma + 1)) ** ((self.gamma + 1) / (2 * (self.gamma - 1)))
         pressure_ratio_calculated = 0.001
-        pressure_stepsize = 0.00005
+        pressure_stepsize = 0.0001
         epsilon_calculated = 0
 
         epsilon_true = self.expansion_ratio()
@@ -198,6 +208,7 @@ class Chromosome:
         threshold = 1
 
         while error > threshold:
+            #print(pressure_ratio_calculated)
             epsilon_calculated = Gamma / sqrt((2 * self.gamma / (self.gamma - 1)) * pressure_ratio_calculated ** (2 / self.gamma) * (
                     1 - pressure_ratio_calculated ** ((self.gamma - 1) / self.gamma)))
             error = abs(epsilon_true - epsilon_calculated)
@@ -242,9 +253,7 @@ class Chromosome:
         # TODO: Figure out what Gamma was needed for. It was also not used in the function-based version of the code
         Gamma = sqrt(self.gamma) * (2 / (self.gamma + 1)) ** ((self.gamma + 1) / (2 * (self.gamma - 1)))
 
-        p_ratio = self.pressure_ratio()
-
-        U_e = sqrt(2 * (self.gamma * R * T_c) / (self.gamma - 1) * (1 - p_ratio ** ((self.gamma - 1) / self.gamma))) * self.performance_loss()
+        U_e = sqrt(2 * (self.gamma * R * T_c) / (self.gamma - 1) * (1 - self.pressure_ratio_value ** ((self.gamma - 1) / self.gamma))) * self.performance_loss_factor
 
         return U_e
 
@@ -286,7 +295,6 @@ class Chromosome:
         altitude = 1  # m
         t = 0  # s
         dt = simulation_settings[0]
-        p_c = self.p_c  # 15 * 10 ^ 5  # Pa
         c_d = simulation_settings[1]
         v = 0  # m / s
 
@@ -296,7 +304,8 @@ class Chromosome:
         mass = 350 + nozzle_mass  # kg
         # TODO: Change function outputs to dictionaries for clarity
         A_e = self.A_t * self.expansion_ratio()
-        p_e = p_c * self.pressure_ratio()
+        self.pressure_ratio_value = self.pressure_ratio()
+        p_e = self.p_c * self.pressure_ratio_value
 
         data = []
         time = []
@@ -312,7 +321,8 @@ class Chromosome:
 
             # Calculate net force and acceleration
             if t < self.t_thrust:
-                F_t = self.performance_loss() * self.m * self.exhaust_velocity() + (p_e - p_a) * A_e
+                self.performance_loss_factor = self.performance_loss()
+                F_t = self.performance_loss_factor * self.m * self.exhaust_velocity() + (p_e - p_a) * A_e
 
             else:
                 engine_on = False
@@ -341,11 +351,9 @@ class Chromosome:
 
             t = t + dt
             v = v + a * dt
-            time.append(t)
+            # time.append(t)
             data.append(altitude)
 
-        # plot(time, data)
-        # fprintf('performance evaluated.\n');
         apogee = max(data)
 
         simulation = {'time': time,
@@ -411,7 +419,7 @@ class Population:
         self.evaluation = evaluate_fitness(self.population)
 
         # Perform roulette selection to select parents
-        parent_selection = roulette_selection(self.population, self.evaluation, self.offspring_count)
+        parent_selection = ranked_selection(self.population, self.evaluation, self.offspring_count)
 
         return parent_selection
 
@@ -434,7 +442,6 @@ class Population:
             offspring_counter += 2
 
         # evaluate offspring
-        print('Evaluating offspring fitness...')
         self.evaluation += evaluate_fitness(offspring)
 
         # add offspring to current population
@@ -442,6 +449,14 @@ class Population:
 
 
     # TODO: add mutation operator
+    # def mutate(self):
+    #
+    #     for chromosome in self.population:
+    #         random_number = random.randint(0, 100) / 100
+    #
+    #         if random_number < self.mutation_prob:
+    #             chromosome = mutate(chromosome)
+
 
     # Select survivors of this generation$
     # TODO: add elitism, but wait for multi-objective implementation first
@@ -450,7 +465,9 @@ class Population:
         # Generate population offspring
         self.reproduce()
 
-        # Use roulette selection to select the members of the next generation
+        #self.mutate()
+
+        # Use selection to select the members of the next generation
         self.population = ranked_selection(self.population, self.evaluation, self.population_size)
 
 
