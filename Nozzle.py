@@ -64,6 +64,24 @@ def single_point_crossover(chromosome_1, chromosome_2):
 
     return offspring
 
+def uniform_crossover(chromosome_1, chromosome_2):
+
+    # pull parent genes from input chromosomes
+    parent_1 = chromosome_1.genes
+    parent_2 = chromosome_2.genes
+
+    gene = 0
+
+    while gene < len(parent_1):
+        if mod(gene, 2) == 0:
+            parent_1[gene], parent_2[gene] = parent_2[gene], parent_1[gene]
+
+        gene += 1
+
+    offspring = [Chromosome(parent_1, engine_properties), Chromosome(parent_2, engine_properties)]
+
+    return offspring
+
 
 # Function to evaluate fitness of population
 def evaluate_fitness(population):
@@ -87,7 +105,6 @@ def roulette_selection(population, evaluation, target_count):
     elite_chromosome_index = evaluation.index(max(evaluation))
     elite_chromosome = population[elite_chromosome_index]
     selection.append(elite_chromosome)
-    print('passing on performance: ', evaluation[elite_chromosome_index], population[elite_chromosome_index])
 
     evaluation.pop(elite_chromosome_index)
     population.pop(elite_chromosome_index)
@@ -140,7 +157,6 @@ def roulette_selection(population, evaluation, target_count):
                 # selection probability does not fall in selection range of current chromosome, move on to next
                 iterator += 1
 
-    print(selection)
     return selection
 
 
@@ -181,79 +197,75 @@ class Chromosome:
         self.performance_loss_factor = 1
         self.pressure_ratio_value = 0
         self.apogee = 0
+        self.z_max = 0
+        self.z_min = 0
+        self.epsilon = 0
+        self.evaluated = False
+        self.time = []
+        self.data = []
 
     # NOZZLE CHARACTERISTICS METHODS
 
     def transition(self):
-        z_min = 0
         r = 0
         R_transition = 72.15 / 1000.
+        z_min = 0
+        self.z_max = 0
 
         # Determine z_min(z_value for which the graphite - zirconium transition radius is reached)
         while abs(r - R_transition) > 0.1 / 1000.:
             r = radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], z_min)
-            z_min = z_min + 0.001 / 1000.
+            z_min += 0.001 / 1000.
 
-        z_max = z_min + self.genes[4]
+        self.z_min = z_min
+        self.z_max = self.z_min + self.genes[4]
 
-        return [z_min, z_max]
-
+    # Determine exit radius
     def exit_radius(self):
-        return radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], self.transition()[1])
+        return radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], self.z_max)
 
+    # Determine expansion ratio
     def expansion_ratio(self):
         return (pi * self.exit_radius() ** 2)/self.A_t
 
+    # Determine the pressure ratio based on geometric and flow properties
     def pressure_ratio(self):
-        # Determine the pressure ratio based on geometric and flow properties
 
         Gamma = sqrt(self.gamma) * (2 / (self.gamma + 1)) ** ((self.gamma + 1) / (2 * (self.gamma - 1)))
         pressure_ratio_calculated = 0.001
         pressure_stepsize = 0.0001
-        epsilon_calculated = 0
 
-        epsilon_true = self.expansion_ratio()
-        error = abs(epsilon_true - epsilon_calculated)
+        epsilon_calculated = 0
+        self.epsilon = self.expansion_ratio()
+
+        error = abs(self.epsilon - epsilon_calculated)
         threshold = 1
 
         while error > threshold:
-            #print(pressure_ratio_calculated)
+
             epsilon_calculated = Gamma / sqrt((2 * self.gamma / (self.gamma - 1)) * pressure_ratio_calculated ** (2 / self.gamma) * (
                     1 - pressure_ratio_calculated ** ((self.gamma - 1) / self.gamma)))
-            error = abs(epsilon_true - epsilon_calculated)
+            error = abs(self.epsilon - epsilon_calculated)
 
             pressure_ratio_calculated = pressure_ratio_calculated + pressure_stepsize
 
         return pressure_ratio_calculated
 
+    # Determine the performance lost due to radial thrust force component
     def performance_loss(self):
-        # Determine the performance lost due to radial thrust force component
 
-        # Determine z_min (z_value for which the graphite - zirconium transition radius is reached). Note that the transition
-        # point is currently fixed at 72.15/1000 by design. This is considered a fixed constraint, so only the curve past
-        # transition can be changed.
-
-        z_min = 0
-        r = 0
-        r_transition = 72.15 / 1000.
-
-        # gradually increase z_min until the resulting radius matches the transition radius
-        # TODO: duplicate calculation, add to class attributes instead
-        while abs(r - r_transition) > 0.01:
-            r = radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], z_min)
-            z_min = z_min + (0.01 / 1000.)
-
-        z_max = z_min + self.genes[4]
+        # self.transition()
 
         # Determine the nozzle exit angle
-        delta_z = 0.005
-        slope = (radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], z_max) - radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], z_max - delta_z)) / delta_z
+        delta_z = 0.005  # nozzle length over which straight wall is assumed to calculate exit angle (i.e. equivalent tangent)
+        slope = (radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], self.z_max) - radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], self.z_max - delta_z)) / delta_z
         exit_angle = atan(slope)
 
         loss_factor = 1 - (1 - cos(exit_angle)) / 2
 
         return loss_factor
 
+    # Determine nozzle exhaust velocity
     def exhaust_velocity(self):
         # Determine flow exit velocity based on geometric and flow conditions
 
@@ -267,112 +279,86 @@ class Chromosome:
 
         return U_e
 
-    # OBJECTIVE FUNCTION METHODS
-
-    def objective_function_1(self):
-        # Determine nozzle volumetric parameters
-
-        # Determine z_min(z_value for which the graphite - zirconium transition radius is reached)
-        z_min = self.transition()[0]
-        z_max = self.transition()[1]
-
-        # Determine results through integration
-        z = sy.Symbol("z")
-
-        v_zirconium = (pi * 1. / 1000. * (1. / 1000. * self.genes[4] + 2 * sy.integrate(radius_function(self.genes[0],
-                                                                                                        self.genes[1],
-                                                                                                        self.genes[2],
-                                                                                                        self.genes[3],
-                                                                                                        z),
-                                                                                        (z, z_min, z_max))))  # cm3
-
-        v_titanium = (pi * 4. / 1000. * (4. / 1000. * self.genes[4] + 2 * sy.integrate(radius_function(self.genes[0],
-                                                                                                       self.genes[1],
-                                                                                                       self.genes[2],
-                                                                                                       self.genes[3],
-                                                                                                       z),
-                                                                                       (z, z_min, z_max))))  # cm3
-
-        # Return nozzle mass
-        return v_zirconium * 6400 + v_titanium * 4420
-
+    # Objective function for optimization. Runs simulation based on input vector x to determine performance.
     def objective_function_2(self, simulation_settings):
-        # Objective function for optimization. Runs simulation based on input vector x to determine performance.
-        # TODO: Assess input parameters for vector x (= Optimization parameters)
 
-        # TODO: derive mass flow from throat area + pressure? adds a new geometric parameter to vary
-        prev_altitude = 0  # m (used to determine if rocket is still ascending or not)
-        altitude = 1  # m
-        t = 0  # s
-        dt = simulation_settings[0]
-        c_d = simulation_settings[1]
-        v = 0  # m / s
+        if not self.evaluated:
 
-        # Determine nozzle parameters from input
+            # TODO: derive mass flow from throat area + pressure? adds a new geometric parameter to vary
+            prev_altitude = 0  # m (used to determine if rocket is still ascending or not)
+            altitude = 1  # m
+            t = 0  # s
+            dt = simulation_settings[0]
+            c_d = simulation_settings[1]
+            v = 0  # m / s
 
-        nozzle_mass = self.objective_function_1()  # nozzle_properties returns [nozzle_mass, R_e].
-        mass = 350 + nozzle_mass  # kg
-        # TODO: Change function outputs to dictionaries for clarity
-        A_e = self.A_t * self.expansion_ratio()
-        self.pressure_ratio_value = self.pressure_ratio()
-        p_e = self.p_c * self.pressure_ratio_value
+            # Determine nozzle parameters from input
 
-        data = []
-        time = []
-        engine_on = True
-        # Start simulation loop
+            # TODO: note that nozzle mass changes are neglected to speed up the simulation speed
+            self.transition()
+            #nozzle_mass = self.objective_function_1()  # nozzle_properties returns [nozzle_mass, R_e].
+            mass = 350 #+ nozzle_mass  # kg
 
-        while engine_on:  # or while t_simulation
+            A_e = self.A_t * self.expansion_ratio()
+            self.pressure_ratio_value = self.pressure_ratio()
+            p_e = self.p_c * self.pressure_ratio_value
 
-            # Determine current atmospheric conditions
-            atm = determine_atmosphere(altitude, atmospheric_data)
-            p_a = atm['pressure']
-            rho = atm['density']
+            engine_on = True
+            ascending = True
 
-            # Calculate net force and acceleration
-            if t < self.t_thrust:
-                self.performance_loss_factor = self.performance_loss()
-                F_t = self.performance_loss_factor * self.m * self.exhaust_velocity() + (p_e - p_a) * A_e
+            # Start simulation loop
 
-            else:
-                engine_on = False
-                F_t = 0
+            while engine_on:  # or while t_simulation
 
-            F_d = c_d * 0.5 * rho * v ** 2 * ((100. / 1000.) ** 2 * pi)
-            F_w = mass * 9.80665
+                # Determine current atmospheric conditions
+                atm = determine_atmosphere(altitude, atmospheric_data)
+                p_a = atm['pressure']
+                rho = atm['density']
 
-            F = F_t - F_d - F_w
-            a = F / mass
+                # Calculate net force and acceleration
+                if t < self.t_thrust:
+                    self.performance_loss_factor = self.performance_loss()
+                    F_t = self.performance_loss_factor * self.m * self.exhaust_velocity() + (p_e - p_a) * A_e
 
-            # Calculate distance travelled
-            d = v * dt + 0.5 * a * dt ** 2
-            altitude = altitude + d
+                else:
+                    engine_on = False
+                    F_t = 0
 
-            if altitude < prev_altitude:
-                ascending = False
+                F_d = c_d * 0.5 * rho * v ** 2 * ((100. / 1000.) ** 2 * pi)
+                F_w = mass * 9.80665
 
-            else:
-                prev_altitude = altitude
+                F = F_t - F_d - F_w
+                a = F / mass
 
-            # Update variables
-            if t < self.t_thrust:
-                mass = mass - self.m * dt
+                # Calculate distance travelled
+                d = v * dt + 0.5 * a * dt ** 2
+                altitude = altitude + d
+
+                if altitude < prev_altitude:
+                    ascending = False
+
+                else:
+                    prev_altitude = altitude
+
+                # Update variables
+                if t < self.t_thrust:
+                    mass = mass - self.m * dt
 
 
-            t = t + dt
-            v = v + a * dt
-            # time.append(t)
-            data.append(altitude)
+                t = t + dt
+                v = v + a * dt
+                # time.append(t)
+                self.data.append(altitude)
 
-        apogee = max(data)
-        self.apogee = apogee
+            self.apogee = max(self.data)
+            self.evaluated = True       # Record that this chromosome has been evaluated. Whenever its genes are modified
+                                        # this is set to false again. And whenever a population is being evaluated,
+                                        # chromosomes that have already been evaluated can be skipped.
 
-        simulation = {'time': time,
-                      'data': data,
-                      'apogee': apogee,
-                      'nozzle mass': nozzle_mass}
+        return {'time': self.time,
+                'data': self.data,
+                'apogee': self.apogee}
 
-        return simulation
 
     # Mutation operator
     def mutate(self):
@@ -387,9 +373,7 @@ class Chromosome:
             #print('pre-mutation gene: ', self.genes[modified_gene])
 
             self.genes[modified_gene] += modification * self.genes[modified_gene]
-
-            #print('post-mutation gene: ', self.genes[modified_gene])
-            #print('---')
+            self.evaluated = False  # set the evaluation status to false
 
 
 class Population:
@@ -407,8 +391,8 @@ class Population:
         self.evaluation = []
 
 
-    # Method to derive how many offspring will be replacing population members (and so how many parents are needed)
-    # The higher population steadiness is, the less members will be replaced by offspring
+    # Derive how many offspring will be replacing population members (and so how many parents are needed)
+    # The higher population steadiness is, the fewer members will be replaced by offspring
     def population_replacement(self):
 
         # Determine size of population
@@ -424,12 +408,6 @@ class Population:
         if mod(offspring_count, 2) != 0:
             offspring_count += 1
 
-        # print('')
-        # print('population size: ', population_size)
-        # print('population steadiness: ', self.population_steadiness)
-        # print('number of offspring to be calculated: ', offspring_count)
-        # print('')
-
         self.offspring_count = offspring_count
 
         return offspring_count
@@ -438,7 +416,7 @@ class Population:
     def parent_selection(self):
 
         # Evaluate population
-        print('Evaluating fitness...')
+        #print('Evaluating fitness...')
         self.evaluation = evaluate_fitness(self.population)
 
         # Perform roulette selection to select parents
@@ -460,7 +438,7 @@ class Population:
             index_1 = offspring_counter
             index_2 = index_1 + 1
 
-            offspring = offspring + single_point_crossover(parent_list[index_1], parent_list[index_2])
+            offspring = offspring + uniform_crossover(parent_list[index_1], parent_list[index_2])
 
             offspring_counter += 2
 
@@ -489,9 +467,6 @@ class Population:
             self.evaluation[iterator] = self.population[iterator].apogee
 
             iterator += 1
-
-        print('new evaluation list: ', self.evaluation)
-        print('')
 
 
 
