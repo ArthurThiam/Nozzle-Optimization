@@ -22,4 +22,5 @@ GA_settings = [config.getfloat('GA Settings', 'population_steadiness'),
                config.getfloat('GA Settings', 'crossover_prob'),
                config.getfloat('GA Settings', 'mutation_prob'),
                config.getint('GA Settings', 'population_size'),
-               config.getint('GA Settings', 'generation_target')]
+               config.getint('GA Settings', 'generation_target'),
+               config.getfloat('GA Settings', 'mutation_percentage')]

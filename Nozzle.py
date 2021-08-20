@@ -24,7 +24,7 @@ def randomize_solution(input_solution):
 
     new_solution = []
     for i in range(len(input_solution)):
-        new_entry = input_solution[i] + (- 0.5 + 1*random.random())*input_solution[i]  # up to 20% variation
+        new_entry = input_solution[i] + (- 0.5 + 1*random.random())*input_solution[i]  # up to 50% variation
         new_solution.append(new_entry)
 
     return new_solution
@@ -48,8 +48,8 @@ def initialize(input_solution, population_size):
 def single_point_crossover(chromosome_1, chromosome_2):
 
     # pull parent genes from input chromosomes
-    parent_1 = chromosome_1.genes()
-    parent_2 = chromosome_2.genes()
+    parent_1 = chromosome_1.genes
+    parent_2 = chromosome_2.genes
 
     # determine cross over point
     #cross_over_point = random.randint(0, len(parent_1))
@@ -81,6 +81,22 @@ def evaluate_fitness(population):
 # Roulette selection
 def roulette_selection(population, evaluation, target_count):
 
+    selection = []
+
+    # Remove best performer and add it to the selection
+    elite_chromosome_index = evaluation.index(max(evaluation))
+    elite_chromosome = population[elite_chromosome_index]
+    selection.append(elite_chromosome)
+    print('passing on performance: ', evaluation[elite_chromosome_index], population[elite_chromosome_index])
+
+    evaluation.pop(elite_chromosome_index)
+    population.pop(elite_chromosome_index)
+
+    # Substract lowest performer to increase relative differences
+    min_performance = min(evaluation)
+    for performance in evaluation:
+        performance -= min_performance
+
     # Calculate fitness probabilities
     fitness_probabilities = []
     for apogee in evaluation:
@@ -90,8 +106,8 @@ def roulette_selection(population, evaluation, target_count):
     selection_probabilities = []
     iterator = 0
 
-    # Make list of selection probabilities
-    while iterator < target_count:
+    # Make list of selection probabilities (selecting one less, since best performer was passed through earlier)
+    while iterator < target_count - 1:
         selection_probabilities.append(random.randint(0, 100) / 100)
         iterator += 1
 
@@ -101,18 +117,15 @@ def roulette_selection(population, evaluation, target_count):
     for i in range(len(fitness_probabilities)):
         cumulative_fitness[i] = cumulative_fitness[i - 1] + fitness_probabilities[i]
 
-    # print("cumulative fitness: ", cumulative_fitness)
     # Apply selection probabilities to cumulative fitness probabilities
-    selection = []
 
     for selector in range(len(selection_probabilities)):  # selector running through each selection probability
 
-        selected = False  # Boolean to indicated whether a chromosome was selected in current loop
+        selected = False  # Boolean to indicate whether a chromosome was selected in current loop
         iterator = 0  # iterator running through each chromosome
 
         while not selected:
 
-            #print(selector, iterator, len(cumulative_fitness))
             if selection_probabilities[selector] <= cumulative_fitness[iterator]:
 
                 # selection probability falls in the selection range of the current chromosome
@@ -127,6 +140,7 @@ def roulette_selection(population, evaluation, target_count):
                 # selection probability does not fall in selection range of current chromosome, move on to next
                 iterator += 1
 
+    print(selection)
     return selection
 
 
@@ -149,21 +163,15 @@ def ranked_selection(population, evaluation, target_count):
     return selection
 
 
-# Mutation operator
-def mutate(chromosome):
-    return 0
-
 # ================================================= CLASSES ======================================================
 
 
 class Chromosome:
 
     def __init__(self, geometry, engine_properties):
-        self.a = geometry[0]
-        self.b = geometry[1]
-        self.c = geometry[2]
-        self.d = geometry[3]
-        self.dz = geometry[4]
+
+        # initial conditions: -1.3360, 2.3935, 0.0888, 0.05, 0.1015
+        self.genes = [geometry[0], geometry[1], geometry[2], geometry[3], geometry[4]]
 
         self.gamma = engine_properties[0]
         self.m = engine_properties[1]
@@ -172,6 +180,7 @@ class Chromosome:
         self.p_c = engine_properties[4]
         self.performance_loss_factor = 1
         self.pressure_ratio_value = 0
+        self.apogee = 0
 
     # NOZZLE CHARACTERISTICS METHODS
 
@@ -182,15 +191,15 @@ class Chromosome:
 
         # Determine z_min(z_value for which the graphite - zirconium transition radius is reached)
         while abs(r - R_transition) > 0.1 / 1000.:
-            r = radius_function(self.a, self.b, self.c, self.d, z_min)
+            r = radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], z_min)
             z_min = z_min + 0.001 / 1000.
 
-        z_max = z_min + self.dz
+        z_max = z_min + self.genes[4]
 
         return [z_min, z_max]
 
     def exit_radius(self):
-        return radius_function(self.a, self.b, self.c, self.d, self.transition()[1])
+        return radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], self.transition()[1])
 
     def expansion_ratio(self):
         return (pi * self.exit_radius() ** 2)/self.A_t
@@ -229,15 +238,16 @@ class Chromosome:
         r_transition = 72.15 / 1000.
 
         # gradually increase z_min until the resulting radius matches the transition radius
+        # TODO: duplicate calculation, add to class attributes instead
         while abs(r - r_transition) > 0.01:
-            r = radius_function(self.a, self.b, self.c, self.d, z_min)
+            r = radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], z_min)
             z_min = z_min + (0.01 / 1000.)
 
-        z_max = z_min + self.dz
+        z_max = z_min + self.genes[4]
 
         # Determine the nozzle exit angle
         delta_z = 0.005
-        slope = (radius_function(self.a, self.b, self.c, self.d, z_max) - radius_function(self.a, self.b, self.c, self.d, z_max - delta_z)) / delta_z
+        slope = (radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], z_max) - radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], z_max - delta_z)) / delta_z
         exit_angle = atan(slope)
 
         loss_factor = 1 - (1 - cos(exit_angle)) / 2
@@ -269,17 +279,17 @@ class Chromosome:
         # Determine results through integration
         z = sy.Symbol("z")
 
-        v_zirconium = (pi * 1. / 1000. * (1. / 1000. * self.dz + 2 * sy.integrate(radius_function(self.a,
-                                                                                                        self.b,
-                                                                                                        self.c,
-                                                                                                        self.d,
+        v_zirconium = (pi * 1. / 1000. * (1. / 1000. * self.genes[4] + 2 * sy.integrate(radius_function(self.genes[0],
+                                                                                                        self.genes[1],
+                                                                                                        self.genes[2],
+                                                                                                        self.genes[3],
                                                                                                         z),
                                                                                         (z, z_min, z_max))))  # cm3
 
-        v_titanium = (pi * 4. / 1000. * (4. / 1000. * self.dz + 2 * sy.integrate(radius_function(self.a,
-                                                                                                       self.b,
-                                                                                                       self.c,
-                                                                                                       self.d,
+        v_titanium = (pi * 4. / 1000. * (4. / 1000. * self.genes[4] + 2 * sy.integrate(radius_function(self.genes[0],
+                                                                                                       self.genes[1],
+                                                                                                       self.genes[2],
+                                                                                                       self.genes[3],
                                                                                                        z),
                                                                                        (z, z_min, z_max))))  # cm3
 
@@ -355,6 +365,7 @@ class Chromosome:
             data.append(altitude)
 
         apogee = max(data)
+        self.apogee = apogee
 
         simulation = {'time': time,
                       'data': data,
@@ -363,10 +374,22 @@ class Chromosome:
 
         return simulation
 
-    # Chromosome information
+    # Mutation operator
+    def mutate(self):
 
-    def genes(self):
-        return [self.a, self.b, self.c, self.d, self.dz]
+        mutation_percentage = GA_settings[5]  # percentage by which a gene may be mutated
+        random_number = random.random()
+
+        if random_number < GA_settings[2]:
+            modified_gene = random.randint(0, len(self.genes) - 1)  # Determine what gene to modify
+            modification = - mutation_percentage + 2 * mutation_percentage * random.random()  # Determine how much to modify the gene
+
+            #print('pre-mutation gene: ', self.genes[modified_gene])
+
+            self.genes[modified_gene] += modification * self.genes[modified_gene]
+
+            #print('post-mutation gene: ', self.genes[modified_gene])
+            #print('---')
 
 
 class Population:
@@ -430,7 +453,7 @@ class Population:
                                                             #   so it doesn't have to be recalled in the future
         offspring_counter = 0
         offspring = []
-        parent_list = self.parent_selection()
+        parent_list = self.parent_selection()               # Also runs evaluation of performance
 
         while offspring_counter < offspring_target:
 
@@ -448,28 +471,27 @@ class Population:
         self.population += offspring
 
 
-    # TODO: add mutation operator
-    # def mutate(self):
-    #
-    #     for chromosome in self.population:
-    #         random_number = random.randint(0, 100) / 100
-    #
-    #         if random_number < self.mutation_prob:
-    #             chromosome = mutate(chromosome)
-
-
-    # Select survivors of this generation$
-    # TODO: add elitism, but wait for multi-objective implementation first
+    # Select survivors of this generation
     def select_survivors(self):
 
         # Generate population offspring
         self.reproduce()
 
-        #self.mutate()
+        for chromosome in self.population:
+            chromosome.mutate()
 
-        # Use selection to select the members of the next generation
-        self.population = ranked_selection(self.population, self.evaluation, self.population_size)
+        # Select members of the next generation
+        self.population = roulette_selection(self.population, self.evaluation, self.population_size)
 
+        # Update evaluation (they are now stored in individual chromosomes, so no need to re-evaluate everything)
+        iterator = 0
+        while iterator < self.population_size:
+            self.evaluation[iterator] = self.population[iterator].apogee
+
+            iterator += 1
+
+        print('new evaluation list: ', self.evaluation)
+        print('')
 
 
 
