@@ -26,8 +26,11 @@ while generation_count < generation_target:
     population.select_survivors()                               # Determine survivors of current generation
     average = sum(population.evaluation)/len(population.evaluation)
     best = max(population.evaluation)
+    best_chromosome = (population.population[population.evaluation.index(best)]).genes
 
     print('Population', generation_count, ': ', population.evaluation)
+    print('Best chromosome: ', best_chromosome)
+    print('')
     print('Best performance: ', best, ' m')
     print('Average performance: ', average, ' m')
     print('----------------------------------------------------')

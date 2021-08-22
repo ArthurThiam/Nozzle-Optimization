@@ -23,9 +23,16 @@ def radius_function(a, b, c, d, z):
 def randomize_solution(input_solution):
 
     new_solution = []
-    for i in range(len(input_solution)):
+    for i in range(GA_settings[6]):
         new_entry = input_solution[i] + (- 0.5 + 1*random.random())*input_solution[i]  # up to 50% variation
         new_solution.append(new_entry)
+
+    if len(new_solution) < len(geometry):
+        missing_genes = len(geometry) - len(new_solution)
+
+        while missing_genes > 0:
+            new_solution.append(geometry[len(new_solution)])
+            missing_genes = len(geometry) - len(new_solution)
 
     return new_solution
 
@@ -44,7 +51,7 @@ def initialize(input_solution, population_size):
 
 
 # The single point cross-over takes two chromosome instances and returns their two offspring
-# TODO: fix cross-over function (either change operator or come up with better cross over point)
+# NOTE: DOES NOT SUPPORT VARIABLE NUMBER OF UNSTABLE GENES
 def single_point_crossover(chromosome_1, chromosome_2):
 
     # pull parent genes from input chromosomes
@@ -64,6 +71,8 @@ def single_point_crossover(chromosome_1, chromosome_2):
 
     return offspring
 
+
+# Uniform cross-over
 def uniform_crossover(chromosome_1, chromosome_2):
 
     # pull parent genes from input chromosomes
@@ -72,7 +81,7 @@ def uniform_crossover(chromosome_1, chromosome_2):
 
     gene = 0
 
-    while gene < len(parent_1):
+    while gene < GA_settings[6]:
         if mod(gene, 2) == 0:
             parent_1[gene], parent_2[gene] = parent_2[gene], parent_1[gene]
 
@@ -308,7 +317,7 @@ class Chromosome:
 
             # Start simulation loop
 
-            while engine_on:  # or while t_simulation
+            while ascending:  # or while t_simulation
 
                 # Determine current atmospheric conditions
                 atm = determine_atmosphere(altitude, atmospheric_data)
@@ -366,14 +375,34 @@ class Chromosome:
         mutation_percentage = GA_settings[5]  # percentage by which a gene may be mutated
         random_number = random.random()
 
+        # perform mutation
         if random_number < GA_settings[2]:
             modified_gene = random.randint(0, len(self.genes) - 1)  # Determine what gene to modify
             modification = - mutation_percentage + 2 * mutation_percentage * random.random()  # Determine how much to modify the gene
 
-            #print('pre-mutation gene: ', self.genes[modified_gene])
 
-            self.genes[modified_gene] += modification * self.genes[modified_gene]
-            self.evaluated = False  # set the evaluation status to false
+            if modified_gene < GA_settings[6]:
+                self.genes[modified_gene] += modification * self.genes[modified_gene]
+                self.evaluated = False  # set the evaluation status to false
+
+            else:
+                self.mutate()
+
+        # Check if no stable gene was mutated
+        # stable_genes = len(self.genes) - GA_settings[6]
+        # counter = 1
+        #
+        # if stable_genes > 0:
+        #     while (counter + GA_settings[6]) <= len(self.genes):
+        #
+        #         index = -counter
+        #         if self.genes[index] != geometry[index]:
+        #             self.genes[index] = geometry[index]
+        #
+        #         counter += 1
+        #
+        # if not mutation_successful:
+        #     self.mutate()
 
 
 class Population:
