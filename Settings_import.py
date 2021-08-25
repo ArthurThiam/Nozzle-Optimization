@@ -7,7 +7,10 @@ geometry = [config.getfloat('Geometry', 'a'),
             config.getfloat('Geometry', 'b'),
             config.getfloat('Geometry', 'c'),
             config.getfloat('Geometry', 'd'),
-            config.getfloat('Geometry', 'dz')]
+            config.getfloat('Geometry', 'dz'),
+            config.getfloat('Geometry', 'D_t')]
+
+design_constraints = {'Re_max': config.getfloat('Design Constraints', 'Re_max')}
 
 engine_properties = [config.getfloat('Engine Properties', 'gamma'),
                      config.getfloat('Engine Properties', 'm'),

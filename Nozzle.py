@@ -196,12 +196,11 @@ class Chromosome:
     def __init__(self, geometry, engine_properties):
 
         # initial conditions: -1.3360, 2.3935, 0.0888, 0.05, 0.1015
-        self.genes = [geometry[0], geometry[1], geometry[2], geometry[3], geometry[4]]
+        self.genes = [geometry[0], geometry[1], geometry[2], geometry[3], geometry[4], geometry[5]]
 
         self.gamma = engine_properties[0]
-        self.m = engine_properties[1]
         self.t_thrust = engine_properties[2]
-        self.A_t = engine_properties[3]
+        self.A_t = pi * self.genes[5] ** 2 / 4
         self.p_c = engine_properties[4]
         self.performance_loss_factor = 1
         self.pressure_ratio_value = 0
@@ -209,12 +208,14 @@ class Chromosome:
         self.z_max = 0
         self.z_min = 0
         self.epsilon = 0
+        self.R_e = 0
         self.evaluated = False
         self.time = []
         self.data = []
 
     # NOZZLE CHARACTERISTICS METHODS
 
+    # Determine graphite - zirconium transition point
     def transition(self):
         r = 0
         R_transition = 72.15 / 1000.
@@ -229,9 +230,21 @@ class Chromosome:
         self.z_min = z_min
         self.z_max = self.z_min + self.genes[4]
 
+    # Vanderkerckhove function
+    def vanderkerckhove(self):
+        return sqrt(self.gamma)*(2/(self.gamma + 1))**((self.gamma + 1)/(2*(self.gamma - 1)))
+
+    # Determine mass flow rate
+    def massflow(self):
+        Gamma = self.vanderkerckhove()
+
+        return Gamma * self.p_c * self.A_t / sqrt(287 * 3000)
+
     # Determine exit radius
     def exit_radius(self):
-        return radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], self.z_max)
+        # TODO: fix relation between throat diameter and added exit radius
+        self.R_e = radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], self.z_max) + geometry[5]/2
+        return self.R_e
 
     # Determine expansion ratio
     def expansion_ratio(self):
@@ -293,7 +306,6 @@ class Chromosome:
 
         if not self.evaluated:
 
-            # TODO: derive mass flow from throat area + pressure? adds a new geometric parameter to vary
             prev_altitude = 0  # m (used to determine if rocket is still ascending or not)
             altitude = 1  # m
             t = 0  # s
@@ -311,13 +323,15 @@ class Chromosome:
             A_e = self.A_t * self.expansion_ratio()
             self.pressure_ratio_value = self.pressure_ratio()
             p_e = self.p_c * self.pressure_ratio_value
+            m = self.massflow()
+
 
             engine_on = True
             ascending = True
 
             # Start simulation loop
 
-            while ascending:  # or while t_simulation
+            while engine_on:  # or while t_simulation
 
                 # Determine current atmospheric conditions
                 atm = determine_atmosphere(altitude, atmospheric_data)
@@ -327,7 +341,7 @@ class Chromosome:
                 # Calculate net force and acceleration
                 if t < self.t_thrust:
                     self.performance_loss_factor = self.performance_loss()
-                    F_t = self.performance_loss_factor * self.m * self.exhaust_velocity() + (p_e - p_a) * A_e
+                    F_t = self.performance_loss_factor * m * self.exhaust_velocity() + (p_e - p_a) * A_e
 
                 else:
                     engine_on = False
@@ -351,7 +365,7 @@ class Chromosome:
 
                 # Update variables
                 if t < self.t_thrust:
-                    mass = mass - self.m * dt
+                    mass = mass - m * dt
 
 
                 t = t + dt
@@ -359,7 +373,16 @@ class Chromosome:
                 # time.append(t)
                 self.data.append(altitude)
 
-            self.apogee = max(self.data)
+            apogee = max(self.data)
+            if self.R_e <= design_constraints['Re_max']:
+                penalty = 1
+
+            else:
+                penalty = 0
+
+                print('solution not admissible')
+
+            self.apogee = max(self.data) * penalty
             self.evaluated = True       # Record that this chromosome has been evaluated. Whenever its genes are modified
                                         # this is set to false again. And whenever a population is being evaluated,
                                         # chromosomes that have already been evaluated can be skipped.
