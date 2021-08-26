@@ -7,7 +7,8 @@ solution_space = initialize(geometry, GA_settings[3])
 gene_set = []
 
 for solution in solution_space:
-    gene_set.append(Chromosome(solution, engine_properties))
+    solution_geometry = build_geometry(solution)
+    gene_set.append(Chromosome(solution_geometry, engine_properties))
 
 population = Population(gene_set)
 

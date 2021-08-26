@@ -3,12 +3,21 @@ import configparser
 config = configparser.ConfigParser()
 config.read('settings.ini')
 
-geometry = [config.getfloat('Geometry', 'a'),
-            config.getfloat('Geometry', 'b'),
-            config.getfloat('Geometry', 'c'),
-            config.getfloat('Geometry', 'd'),
-            config.getfloat('Geometry', 'dz'),
-            config.getfloat('Geometry', 'D_t')]
+# geometry = [config.getfloat('Geometry', 'a'),
+#             config.getfloat('Geometry', 'b'),
+#             config.getfloat('Geometry', 'c'),
+#             config.getfloat('Geometry', 'd'),
+#             config.getfloat('Geometry', 'dz'),
+#             config.getfloat('Geometry', 'D_t')]
+
+geometry_keys = ['a', 'b', 'c', 'd', 'dz', 'D_t']
+
+geometry = {'a': config.getfloat('Geometry', 'a'),
+            'b': config.getfloat('Geometry', 'b'),
+            'c': config.getfloat('Geometry', 'c'),
+            'd': config.getfloat('Geometry', 'd'),
+            'dz': config.getfloat('Geometry', 'dz'),
+            'D_t': config.getfloat('Geometry', 'D_t')}
 
 design_constraints = {'Re_max': config.getfloat('Design Constraints', 'Re_max')}
 

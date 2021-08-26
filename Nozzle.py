@@ -1,7 +1,7 @@
 from math import *
 from isa import determine_atmosphere
 import sympy as sy
-from numpy import zeros, mod
+from numpy import zeros, mod, array
 import random
 from Settings_import import *
 
@@ -14,7 +14,18 @@ atmospheric_data = {'base_altitude': [0, 11000, 20000, 32000, 47000, 51000, 7100
 
 # ========================================= OPERATORS ============================================================
 
+# Function to build geometry dictionary from gene values
+def build_geometry(solution):
+    solution_geometry = {'a': solution[0],
+                         'b': solution[1],
+                         'c': solution[2],
+                         'd': solution[3],
+                         'dz': solution[4],
+                         'D_t': solution[5]}
 
+    return solution_geometry
+
+# Nozzle radius from geometric parameters + desired z_position
 def radius_function(a, b, c, d, z):
     return (a + ((b + 1000 * c * z)**0.5 / d)) * 0.001
 
@@ -24,14 +35,14 @@ def randomize_solution(input_solution):
 
     new_solution = []
     for i in range(GA_settings[6]):
-        new_entry = input_solution[i] + (- 0.5 + 1*random.random())*input_solution[i]  # up to 50% variation
+        new_entry = input_solution[geometry_keys[i]] + (- 0.5 + 1*random.random())*input_solution[geometry_keys[i]]  # up to 50% variation
         new_solution.append(new_entry)
 
     if len(new_solution) < len(geometry):
         missing_genes = len(geometry) - len(new_solution)
 
         while missing_genes > 0:
-            new_solution.append(geometry[len(new_solution)])
+            new_solution.append(geometry[geometry_keys[len(new_solution)]])
             missing_genes = len(geometry) - len(new_solution)
 
     return new_solution
@@ -87,7 +98,7 @@ def uniform_crossover(chromosome_1, chromosome_2):
 
         gene += 1
 
-    offspring = [Chromosome(parent_1, engine_properties), Chromosome(parent_2, engine_properties)]
+    offspring = [Chromosome(build_geometry(parent_1), engine_properties), Chromosome(build_geometry(parent_2), engine_properties)]
 
     return offspring
 
@@ -190,13 +201,13 @@ def ranked_selection(population, evaluation, target_count):
 
 # ================================================= CLASSES ======================================================
 
-
+# TODO: constrain nozzle divergent length dz
 class Chromosome:
 
     def __init__(self, geometry, engine_properties):
 
         # initial conditions: -1.3360, 2.3935, 0.0888, 0.05, 0.1015
-        self.genes = [geometry[0], geometry[1], geometry[2], geometry[3], geometry[4], geometry[5]]
+        self.genes = [geometry['a'], geometry['b'], geometry['c'], geometry['d'], geometry['dz'], geometry['D_t']]
 
         self.gamma = engine_properties[0]
         self.t_thrust = engine_properties[2]
@@ -229,6 +240,7 @@ class Chromosome:
 
         self.z_min = z_min
         self.z_max = self.z_min + self.genes[4]
+        print(self.z_max)
 
     # Vanderkerckhove function
     def vanderkerckhove(self):
@@ -238,12 +250,12 @@ class Chromosome:
     def massflow(self):
         Gamma = self.vanderkerckhove()
 
-        return Gamma * self.p_c * self.A_t / sqrt(287 * 3000)
+        return Gamma * self.p_c * self.A_t / sqrt(287 * 2170)
 
     # Determine exit radius
     def exit_radius(self):
         # TODO: fix relation between throat diameter and added exit radius
-        self.R_e = radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], self.z_max) + geometry[5]/2
+        self.R_e = radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], self.z_max) + geometry['D_t']/2
         return self.R_e
 
     # Determine expansion ratio
@@ -293,9 +305,6 @@ class Chromosome:
 
         R = 640.91
         T_c = 2170
-
-        # TODO: Figure out what Gamma was needed for. It was also not used in the function-based version of the code
-        Gamma = sqrt(self.gamma) * (2 / (self.gamma + 1)) ** ((self.gamma + 1) / (2 * (self.gamma - 1)))
 
         U_e = sqrt(2 * (self.gamma * R * T_c) / (self.gamma - 1) * (1 - self.pressure_ratio_value ** ((self.gamma - 1) / self.gamma))) * self.performance_loss_factor
 
@@ -410,22 +419,6 @@ class Chromosome:
 
             else:
                 self.mutate()
-
-        # Check if no stable gene was mutated
-        # stable_genes = len(self.genes) - GA_settings[6]
-        # counter = 1
-        #
-        # if stable_genes > 0:
-        #     while (counter + GA_settings[6]) <= len(self.genes):
-        #
-        #         index = -counter
-        #         if self.genes[index] != geometry[index]:
-        #             self.genes[index] = geometry[index]
-        #
-        #         counter += 1
-        #
-        # if not mutation_successful:
-        #     self.mutate()
 
 
 class Population:
