@@ -8,6 +8,15 @@ def determine_atmosphere(altitude, atmosphere):
 
     while not data_found:  # for i in range(len(atmosphere['base_altitude'])):
 
+        if i > 8:
+            lapse = 0
+            base_altitude = 100000
+            base_temperature = 214.65
+            base_density = 0
+            base_pressure = 0
+
+            data_found = True
+
         if atmosphere['base_altitude'][i] <= altitude < atmosphere['base_altitude'][i+1]:
 
             base_altitude = atmosphere['base_altitude'][i]

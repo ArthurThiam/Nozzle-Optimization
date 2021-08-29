@@ -1,9 +1,10 @@
 from math import *
 from isa import determine_atmosphere
-import sympy as sy
-from numpy import zeros, mod, array
+from scipy.optimize import minimize
+from numpy import zeros, mod, array, inf, arange
 import random
 from Settings_import import *
+import sys
 
 atmospheric_data = {'base_altitude': [0, 11000, 20000, 32000, 47000, 51000, 71000, 100000],
                     'base_temperature': [288.15, 216.65, 216.65, 228.65, 270.65, 270.65, 214.65],
@@ -122,12 +123,21 @@ def roulette_selection(population, evaluation, target_count):
     selection = []
 
     # Remove best performer and add it to the selection
-    elite_chromosome_index = evaluation.index(max(evaluation))
-    elite_chromosome = population[elite_chromosome_index]
+    elite_chromosome = population[0]
+    for chromosome in population:
+        if chromosome.apogee > elite_chromosome.apogee:
+            elite_chromosome = chromosome
+
+    # Reset all elite statuses
+    for chromosome in population:
+        chromosome.is_elite = False
+
+    elite_chromosome.is_elite = True
+
     selection.append(elite_chromosome)
 
-    evaluation.pop(elite_chromosome_index)
-    population.pop(elite_chromosome_index)
+    #evaluation.pop(elite_chromosome_index)
+    #population.pop(elite_chromosome_index)
 
     # Substract lowest performer to increase relative differences
     min_performance = min(evaluation)
@@ -199,6 +209,34 @@ def ranked_selection(population, evaluation, target_count):
     return selection
 
 
+# Boundary condition checker
+def boundary_conditions_ok(chromosome):
+
+    # Maximum exit radius
+    if chromosome.R_e >= design_constraints['Re_max']:
+        return False
+
+    # Maximum throat diameter
+    elif chromosome.genes[-1] >= design_constraints['Rt_max']:
+        return False
+
+    # positive throat
+    elif chromosome.genes[-1] <= 0.06:
+        return False
+
+    # Maximum length
+    elif chromosome.genes[4] >= design_constraints['dz_max']:
+        return False
+
+    # Minimum expansion ratio
+    elif chromosome.epsilon < design_constraints['epsilon_min']:
+        return False
+
+    # All conditions met
+    else:
+        return True
+
+
 # ================================================= CLASSES ======================================================
 
 # TODO: constrain nozzle divergent length dz
@@ -218,11 +256,12 @@ class Chromosome:
         self.apogee = 0
         self.z_max = 0
         self.z_min = 0
-        self.epsilon = 0
+        self.epsilon = 8
         self.R_e = 0
         self.evaluated = False
         self.time = []
         self.data = []
+        self.is_elite = False
 
     # NOZZLE CHARACTERISTICS METHODS
 
@@ -230,17 +269,19 @@ class Chromosome:
     def transition(self):
         r = 0
         R_transition = 72.15 / 1000.
-        z_min = 0
+        #z_min = 0
         self.z_max = 0
 
         # Determine z_min(z_value for which the graphite - zirconium transition radius is reached)
-        while abs(r - R_transition) > 0.1 / 1000.:
-            r = radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], z_min)
-            z_min += 0.001 / 1000.
+        # while abs(r - R_transition) > 0.5 / 1000.:
+        #     r = radius_function(self.genes[0], self.genes[1], self.genes[2], self.genes[3], z_min)
+        #     z_min += 0.005 / 1000.
+
+        z_min = ((R_transition - self.genes[0])**2 * self.genes[3]**2 - self.genes[1])/(1000*self.genes[2])
+
 
         self.z_min = z_min
         self.z_max = self.z_min + self.genes[4]
-        print(self.z_max)
 
     # Vanderkerckhove function
     def vanderkerckhove(self):
@@ -250,7 +291,8 @@ class Chromosome:
     def massflow(self):
         Gamma = self.vanderkerckhove()
 
-        return Gamma * self.p_c * self.A_t / sqrt(287 * 2170)
+        #return Gamma * self.p_c * self.A_t / sqrt(287 * 2170)
+        return engine_properties[1]
 
     # Determine exit radius
     def exit_radius(self):
@@ -267,7 +309,7 @@ class Chromosome:
 
         Gamma = sqrt(self.gamma) * (2 / (self.gamma + 1)) ** ((self.gamma + 1) / (2 * (self.gamma - 1)))
         pressure_ratio_calculated = 0.001
-        pressure_stepsize = 0.0001
+        pressure_stepsize = 0.00001
 
         epsilon_calculated = 0
         self.epsilon = self.expansion_ratio()
@@ -313,6 +355,13 @@ class Chromosome:
     # Objective function for optimization. Runs simulation based on input vector x to determine performance.
     def objective_function_2(self, simulation_settings):
 
+        # check boundary conditions
+        if not boundary_conditions_ok(self):
+            self.apogee = 1
+            self.evaluated = True
+
+
+        # if boundary conditions ok, and chromosome not yet evaluated, run simulation
         if not self.evaluated:
 
             prev_altitude = 0  # m (used to determine if rocket is still ascending or not)
@@ -340,7 +389,7 @@ class Chromosome:
 
             # Start simulation loop
 
-            while engine_on:  # or while t_simulation
+            while ascending:  # or while t_simulation
 
                 # Determine current atmospheric conditions
                 atm = determine_atmosphere(altitude, atmospheric_data)
@@ -382,16 +431,8 @@ class Chromosome:
                 # time.append(t)
                 self.data.append(altitude)
 
-            apogee = max(self.data)
-            if self.R_e <= design_constraints['Re_max']:
-                penalty = 1
+            self.apogee = max(self.data)
 
-            else:
-                penalty = 0
-
-                print('solution not admissible')
-
-            self.apogee = max(self.data) * penalty
             self.evaluated = True       # Record that this chromosome has been evaluated. Whenever its genes are modified
                                         # this is set to false again. And whenever a population is being evaluated,
                                         # chromosomes that have already been evaluated can be skipped.
@@ -400,7 +441,6 @@ class Chromosome:
                 'data': self.data,
                 'apogee': self.apogee}
 
-
     # Mutation operator
     def mutate(self):
 
@@ -408,17 +448,18 @@ class Chromosome:
         random_number = random.random()
 
         # perform mutation
-        if random_number < GA_settings[2]:
-            modified_gene = random.randint(0, len(self.genes) - 1)  # Determine what gene to modify
-            modification = - mutation_percentage + 2 * mutation_percentage * random.random()  # Determine how much to modify the gene
+        if not self.is_elite:
+            if random_number < GA_settings[2]:
+                modified_gene = random.randint(0, len(self.genes) - 1)  # Determine what gene to modify
+                modification = - mutation_percentage + 2 * mutation_percentage * random.random()  # Determine how much to modify the gene
 
 
-            if modified_gene < GA_settings[6]:
-                self.genes[modified_gene] += modification * self.genes[modified_gene]
-                self.evaluated = False  # set the evaluation status to false
+                if modified_gene < GA_settings[6]:
+                    self.genes[modified_gene] += modification * self.genes[modified_gene]
+                    self.evaluated = False  # set the evaluation status to false
 
-            else:
-                self.mutate()
+                else:
+                    self.mutate()
 
 
 class Population:
@@ -465,7 +506,7 @@ class Population:
         self.evaluation = evaluate_fitness(self.population)
 
         # Perform roulette selection to select parents
-        parent_selection = ranked_selection(self.population, self.evaluation, self.offspring_count)
+        parent_selection = roulette_selection(self.population, self.evaluation, self.offspring_count)
 
         return parent_selection
 
@@ -486,6 +527,21 @@ class Population:
             offspring = offspring + uniform_crossover(parent_list[index_1], parent_list[index_2])
 
             offspring_counter += 2
+
+        # Add random solutions
+        base_chromosome_index = random.randint(0, len(self.population) - 1)
+        base_geometry = {'a': self.population[base_chromosome_index].genes[0],
+                           'b': self.population[base_chromosome_index].genes[1],
+                           'c': self.population[base_chromosome_index].genes[2],
+                           'd': self.population[base_chromosome_index].genes[3],
+                           'dz': self.population[base_chromosome_index].genes[4],
+                           'D_t': self.population[base_chromosome_index].genes[5]}        # base geometry for initialization
+
+        new_solution_space = initialize(base_geometry, GA_settings[7])
+
+        for solution in new_solution_space:
+            solution_geometry = build_geometry(solution)
+            offspring.append(Chromosome(solution_geometry, engine_properties))  # add chromosome with new geometry to offspring
 
         # evaluate offspring
         self.evaluation += evaluate_fitness(offspring)

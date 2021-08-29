@@ -19,7 +19,10 @@ geometry = {'a': config.getfloat('Geometry', 'a'),
             'dz': config.getfloat('Geometry', 'dz'),
             'D_t': config.getfloat('Geometry', 'D_t')}
 
-design_constraints = {'Re_max': config.getfloat('Design Constraints', 'Re_max')}
+design_constraints = {'Re_max': config.getfloat('Design Constraints', 'Re_max'),
+                      'Rt_max': config.getfloat('Design Constraints', 'Rt_max'),
+                      'dz_max': config.getfloat('Design Constraints', 'dz_max'),
+                      'epsilon_min': config.getfloat('Design Constraints', 'epsilon_min')}
 
 engine_properties = [config.getfloat('Engine Properties', 'gamma'),
                      config.getfloat('Engine Properties', 'm'),
@@ -36,4 +39,5 @@ GA_settings = [config.getfloat('GA Settings', 'population_steadiness'),
                config.getint('GA Settings', 'population_size'),
                config.getint('GA Settings', 'generation_target'),
                config.getfloat('GA Settings', 'mutation_percentage'),
-               config.getint('GA Settings', 'unstable_genes')]
+               config.getint('GA Settings', 'unstable_genes'),
+               config.getint('GA Settings', 'random_solutions')]

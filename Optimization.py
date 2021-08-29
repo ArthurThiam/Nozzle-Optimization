@@ -26,23 +26,30 @@ while generation_count < generation_target:
 
     population.select_survivors()                               # Determine survivors of current generation
     average = sum(population.evaluation)/len(population.evaluation)
-    best = max(population.evaluation)
-    best_chromosome = (population.population[population.evaluation.index(best)])
-    best_genes = (population.population[population.evaluation.index(best)]).genes
+
+    elite_chromosome = population.population[0]
+    for chromosome in population.population:
+        if chromosome.apogee > elite_chromosome.apogee:
+            elite_chromosome = chromosome
+
+    best = elite_chromosome.apogee
+    best_genes = elite_chromosome.genes
 
     print('Population', generation_count, ': ', population.evaluation)
     print('Best chromosome: ', best_genes)
+    print('Exit radius: ', elite_chromosome.R_e)
+    print('Expansion ratio: ', elite_chromosome.epsilon)
     print('')
     print('Best performance: ', best, ' m')
     print('Average performance: ', average, ' m')
     print('----------------------------------------------------')
 
-    performance.append(int(best))
-    average_performance.append(int(average))
+    performance.append(float(best))
+    average_performance.append(float(average))
     counter.append(generation_count)
 
     population = Population(population.population)              # Generate new population with surviving members
-    generation_list.append([population])                          # Add new population to list of generations
+    #generation_list.append([population])                          # Add new population to list of generations
 
 
 
