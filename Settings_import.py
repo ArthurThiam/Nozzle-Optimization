@@ -33,11 +33,11 @@ engine_properties = [config.getfloat('Engine Properties', 'gamma'),
 simulation_settings = [config.getfloat('Simulation Settings', 'dt'),
                        config.getfloat('Simulation Settings', 'c_d')]
 
-GA_settings = [config.getfloat('GA Settings', 'population_steadiness'),
-               config.getfloat('GA Settings', 'crossover_prob'),
-               config.getfloat('GA Settings', 'mutation_prob'),
-               config.getint('GA Settings', 'population_size'),
-               config.getint('GA Settings', 'generation_target'),
-               config.getfloat('GA Settings', 'mutation_percentage'),
-               config.getint('GA Settings', 'unstable_genes'),
-               config.getint('GA Settings', 'random_solutions')]
+GA_settings = [config.getfloat('GA Settings 1', 'population_steadiness'),
+               config.getfloat('GA Settings 1', 'crossover_prob'),
+               config.getfloat('GA Settings 1', 'mutation_prob'),
+               config.getint('GA Settings 1', 'population_size'),
+               config.getint('GA Settings 1', 'generation_target'),
+               config.getfloat('GA Settings 1', 'mutation_percentage'),
+               config.getint('GA Settings 1', 'unstable_genes'),
+               config.getint('GA Settings 1', 'random_solutions')]

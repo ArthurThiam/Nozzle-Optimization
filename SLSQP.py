@@ -9,13 +9,26 @@ fixed_params = {'z': 0.3,
 
 
 # Define constraints
+# ineq_constraints = {
+#     'type': 'ineq',
+#     'fun': lambda x: np.array([sqrt(2.3935 + 300*x[0]) - sqrt(2.3935 + 195.5*x[0]) - 102*x[1]],
+#                               [2.3935 + 300 * x[1]]),
+#
+#     'jac': lambda x: np.array([[150 / sqrt(2.3935 + 300 * x[0]) - 99.25 / sqrt(2.3935 + 198.5 * x[0]), -102],
+#                                [0, 300]])
+#     }
+
 ineq_constraints = {
     'type': 'ineq',
-    'fun': lambda x: np.array([sqrt(2.3935 + 300*x[0]) - sqrt(2.3935 + 195.5*x[0]) - 102*x[1]],
-                              [2.3935 + 300 * x[1]]),
+    'fun': lambda x: np.array([sqrt(2.3935 + 300*x[0]) - 103.336*x[1],
+                               sqrt(2.3935 + 198.5*x[0]) + 73.486*x[1],
+                               -x[1],
+                               -x[0] - 300*x[1]]),
 
-    'jac': lambda x: np.array([[150 / sqrt(2.3935 + 300 * x[0]) - 99.25 / sqrt(2.3935 + 198.5 * x[0]), -102],
-                               [0, 300]])
+    'jac': lambda x: np.array([[150 / sqrt(300 * x[0] + 2.3935), -103.336],
+                               [99.25 / sqrt(198.5 * x[0] + 2.3935), -73.486],
+                               [0, -1],
+                               [-1, -300]])
     }
 
 eq_constraints = {
@@ -54,7 +67,7 @@ iterator = 0
 
 while iterator != max_count:
     res = sp_optimize.minimize(objective_function, x0, args=(), jac=objective_function_der, bounds=bounds, method='SLSQP',
-                           constraints=eq_constraints, options={'disp': False, 'maxiter': 10000}, )
+                           constraints=ineq_constraints, options={'disp': False, 'maxiter': 10000}, )
 
     solutions.append([[x0[0], x0[1]], res.x])
     x0[0] *= 1.1

@@ -5,6 +5,7 @@ from numpy import zeros, mod, array, inf, arange
 import random
 from Settings_import import *
 import sys
+import time
 
 atmospheric_data = {'base_altitude': [0, 11000, 20000, 32000, 47000, 51000, 71000, 100000],
                     'base_temperature': [288.15, 216.65, 216.65, 228.65, 270.65, 270.65, 214.65],
@@ -46,7 +47,7 @@ def randomize_solution(input_solution):
             new_solution.append(geometry[geometry_keys[len(new_solution)]])
             missing_genes = len(geometry) - len(new_solution)
 
-    return new_solution
+    return [-1.336, 2.3935, 0.0888, 0.05, 0.15, 0.085]
 
 
 # Initialization: generate an initial population based on the initial solution.
@@ -319,11 +320,18 @@ class Chromosome:
 
         while error > threshold:
 
-            epsilon_calculated = Gamma / sqrt((2 * self.gamma / (self.gamma - 1)) * pressure_ratio_calculated ** (2 / self.gamma) * (
-                    1 - pressure_ratio_calculated ** ((self.gamma - 1) / self.gamma)))
-            error = abs(self.epsilon - epsilon_calculated)
+            # If solution is invalid the pressure ratio will increase past 1 (causing backflow). This solution will not
+            # be evaluated after the boundary condition check, so set the pressure ratio to 0.5.
+            if pressure_ratio_calculated > 1:
+                pressure_ratio_calculated = 0.5
+                error = 0
 
-            pressure_ratio_calculated = pressure_ratio_calculated + pressure_stepsize
+            else:
+                epsilon_calculated = Gamma / sqrt((2 * self.gamma / (self.gamma - 1)) * pressure_ratio_calculated ** (2 / self.gamma) * (
+                        1 - pressure_ratio_calculated ** ((self.gamma - 1) / self.gamma)))
+                error = abs(self.epsilon - epsilon_calculated)
+
+                pressure_ratio_calculated = pressure_ratio_calculated + pressure_stepsize
 
         return pressure_ratio_calculated
 
@@ -432,6 +440,9 @@ class Chromosome:
                 self.data.append(altitude)
 
             self.apogee = max(self.data)
+
+            if self.apogee > 1000000:
+                self.apogee = 1
 
             self.evaluated = True       # Record that this chromosome has been evaluated. Whenever its genes are modified
                                         # this is set to false again. And whenever a population is being evaluated,
